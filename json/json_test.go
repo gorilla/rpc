@@ -7,6 +7,7 @@ package json
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -70,6 +71,10 @@ type Service1Request struct {
 	B int
 }
 
+type Service1BadRequest struct {
+	M string `json:"method"`
+}
+
 type Service1Response struct {
 	Result int
 }
@@ -102,6 +107,17 @@ func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) e
 	return DecodeClientResponse(w.Body, res)
 }
 
+func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) int {
+	j, _ := json.Marshal(req)
+	r, _ := http.NewRequest("POST", "http://localhost:8080/", bytes.NewBuffer(j))
+	r.Header.Set("Content-Type", "application/json")
+
+	w := NewRecorder()
+	s.ServeHTTP(w, r)
+
+	return w.Code
+}
+
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
@@ -119,5 +135,9 @@ func TestService(t *testing.T) {
 		t.Errorf("Expected to get %q, but got nil", ErrResponseError)
 	} else if err.Error() != ErrResponseError.Error() {
 		t.Errorf("Expected to get %q, but got %q", ErrResponseError, err)
+	}
+
+	if code := executeRaw(t, s, &Service1BadRequest{"Service1.Multiply"}, &res); code != 400 {
+		t.Errorf("Expected http response code 400, but got %v", code)
 	}
 }
