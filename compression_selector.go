@@ -27,11 +27,11 @@ type flateEncoder struct {
 }
 
 func (enc *flateEncoder) Encode(w http.ResponseWriter) io.Writer {
-	w.Header().Set("Content-Encoding", "deflate")
 	flateWriter, err := flate.NewWriter(w, flate.DefaultCompression)
 	if err != nil {
 		return w
 	}
+	w.Header().Set("Content-Encoding", "deflate")
 	return flateWriter
 }
 
