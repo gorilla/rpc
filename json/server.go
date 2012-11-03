@@ -20,6 +20,8 @@ var null = json.RawMessage([]byte("null"))
 
 // serverRequest represents a JSON-RPC request received by the server.
 type serverRequest struct {
+	// A string containing JSON-RPC version.
+	JSONRPC string `json:"jsonrpc"`
 	// A String containing the name of the method to be invoked.
 	Method string `json:"method"`
 	// An Array of objects to pass as arguments to the method.
@@ -31,6 +33,8 @@ type serverRequest struct {
 
 // serverResponse represents a JSON-RPC response returned by the server.
 type serverResponse struct {
+	// A string containing JSON-RPC version.
+	JSONRPC string `json:"jsonrpc"`
 	// The Object that was returned by the invoked method. This must be null
 	// in case there was an error invoking the method.
 	Result interface{} `json:"result"`
@@ -45,18 +49,24 @@ type serverResponse struct {
 // Codec
 // ----------------------------------------------------------------------------
 
+// NewCodec returns a new JSON Codec based on passed encoder selector.
+func NewCustomCodec(encSel rpc.EncoderSelector) *Codec {
+	return &Codec{encSel: encSel}
+}
+
 // NewCodec returns a new JSON Codec.
 func NewCodec() *Codec {
-	return &Codec{}
+	return NewCustomCodec(rpc.DefaultEncoderSelector)
 }
 
 // Codec creates a CodecRequest to process each request.
 type Codec struct {
+	encSel rpc.EncoderSelector
 }
 
 // NewRequest returns a CodecRequest.
 func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
-	return newCodecRequest(r)
+	return newCodecRequest(r, c.encSel.Select(r))
 }
 
 // ----------------------------------------------------------------------------
@@ -64,18 +74,19 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 // ----------------------------------------------------------------------------
 
 // newCodecRequest returns a new CodecRequest.
-func newCodecRequest(r *http.Request) rpc.CodecRequest {
+func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
 	r.Body.Close()
-	return &CodecRequest{request: req, err: err}
+	return &CodecRequest{request: req, err: err, encoder: encoder}
 }
 
 // CodecRequest decodes and encodes a single request.
 type CodecRequest struct {
 	request *serverRequest
 	err     error
+	encoder rpc.Encoder
 }
 
 // Method returns the RPC method for the current request.
@@ -112,6 +123,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		return c.err
 	}
 	res := &serverResponse{
+		JSONRPC: c.request.JSONRPC,
 		Result: reply,
 		Error:  &null,
 		Id:     c.request.Id,
@@ -128,7 +140,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		res.Id = &null
 	} else {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		encoder := json.NewEncoder(w)
+		encoder := json.NewEncoder(c.encoder.Encode(w))
 		encoder.Encode(res)
 	}
 	return nil
