@@ -8,8 +8,12 @@ package json
 import (
 	"encoding/json"
 	"errors"
-	"github.com/gorilla/rpc"
+	"strings"
+	"fmt"
+	"io"
 	"net/http"
+
+	"github.com/gorilla/rpc"
 )
 
 var null = json.RawMessage([]byte("null"))
@@ -67,9 +71,19 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
-	err := json.NewDecoder(r.Body).Decode(req)
+	path := r.URL.Path
+	index := strings.LastIndex(path, "/")
+	if index < 0 {
+		return &CodecRequest{request: req, err: fmt.Errorf("rpc: no method: %s", path)}
+	}
+	req.Method = path[index+1:]
+	err := json.NewDecoder(r.Body).Decode(&req.Params)
 	r.Body.Close()
-	return &CodecRequest{request: req, err: err}
+	var errr error
+	if err != io.EOF {
+		errr = err
+	}
+	return &CodecRequest{request: req, err: errr}
 }
 
 // CodecRequest decodes and encodes a single request.
@@ -94,8 +108,7 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 		if c.request.Params != nil {
 			// JSON params is array value. RPC params is struct.
 			// Unmarshal into array containing the request struct.
-			params := [1]interface{}{args}
-			c.err = json.Unmarshal(*c.request.Params, &params)
+			c.err = json.Unmarshal(*c.request.Params, args)
 		} else {
 			c.err = errors.New("rpc: method request ill-formed: missing params field")
 		}
@@ -121,15 +134,13 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		res.Error = methodErr.Error()
 		// Result must be null if there was an error invoking the method.
 		// http://json-rpc.org/wiki/specification#a1.2Response
-		res.Result = &null
+		res.Result = &struct {
+			ErrorMessage interface{} `json:"error_message"`
+		}{res.Error}
+		w.WriteHeader(500)
 	}
-	if c.request.Id == nil {
-		// Id is null for notifications and they don't have a response.
-		res.Id = &null
-	} else {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		encoder := json.NewEncoder(w)
-		encoder.Encode(res)
-	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	encoder := json.NewEncoder(w)
+	encoder.Encode(res.Result)
 	return nil
 }
