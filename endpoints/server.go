@@ -1,9 +1,10 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 // Copyright 2012 The Gorilla Authors. All rights reserved.
+// Copyright 2012 Google Inc. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package json
+package endpoints
 
 import (
 	"encoding/json"
@@ -22,7 +23,7 @@ var null = json.RawMessage([]byte("null"))
 // Request and Response
 // ----------------------------------------------------------------------------
 
-// serverRequest represents a JSON-RPC request received by the server.
+// serverRequest represents a Google Cloud Endpoints request received by the server.
 type serverRequest struct {
 	// A String containing the name of the method to be invoked.
 	Method string `json:"method"`
@@ -33,7 +34,7 @@ type serverRequest struct {
 	Id *json.RawMessage `json:"id"`
 }
 
-// serverResponse represents a JSON-RPC response returned by the server.
+// serverResponse represents a Google Cloud Endpoints response returned by the server.
 type serverResponse struct {
 	// The Object that was returned by the invoked method. This must be null
 	// in case there was an error invoking the method.
@@ -49,7 +50,7 @@ type serverResponse struct {
 // Codec
 // ----------------------------------------------------------------------------
 
-// NewCodec returns a new JSON Codec.
+// NewCodec returns a new Google Cloud Endpoints Codec.
 func NewCodec() *Codec {
 	return &Codec{}
 }
@@ -106,8 +107,6 @@ func (c *CodecRequest) Method() (string, error) {
 func (c *CodecRequest) ReadRequest(args interface{}) error {
 	if c.err == nil {
 		if c.request.Params != nil {
-			// JSON params is array value. RPC params is struct.
-			// Unmarshal into array containing the request struct.
 			c.err = json.Unmarshal(*c.request.Params, args)
 		} else {
 			c.err = errors.New("rpc: method request ill-formed: missing params field")
@@ -133,7 +132,6 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		// Propagate error message as string.
 		res.Error = methodErr.Error()
 		// Result must be null if there was an error invoking the method.
-		// http://json-rpc.org/wiki/specification#a1.2Response
 		res.Result = &struct {
 			ErrorMessage interface{} `json:"error_message"`
 		}{res.Error}
