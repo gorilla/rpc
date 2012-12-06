@@ -72,11 +72,11 @@ type Service1Request struct {
 }
 
 type Service1BadRequest struct {
-	M string `json:"method"`
 }
 
 type Service1Response struct {
 	Result int
+	ErrorMessage string `json:"error_message"`
 }
 
 type Service1 struct {
@@ -91,31 +91,21 @@ func (t *Service1) ResponseError(r *http.Request, req *Service1Request, res *Ser
 	return ErrResponseError
 }
 
-func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) error {
+func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) (int, error) {
 	if !s.HasMethod(method) {
 		t.Fatal("Expected to be registered:", method)
 	}
 
-	buf, _ := EncodeClientRequest(method, req)
+	buf, _ := json.Marshal(req)
 	body := bytes.NewBuffer(buf)
-	r, _ := http.NewRequest("POST", "http://localhost:8080/", body)
+	r, _ := http.NewRequest("POST", "http://localhost:8080/"+method, body)
 	r.Header.Set("Content-Type", "application/json")
 
 	w := NewRecorder()
 	s.ServeHTTP(w, r)
 
-	return DecodeClientResponse(w.Body, res)
-}
-
-func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) int {
-	j, _ := json.Marshal(req)
-	r, _ := http.NewRequest("POST", "http://localhost:8080/", bytes.NewBuffer(j))
-	r.Header.Set("Content-Type", "application/json")
-
-	w := NewRecorder()
-	s.ServeHTTP(w, r)
-
-	return w.Code
+	err := json.NewDecoder(w.Body).Decode(res)
+	return w.Code, err
 }
 
 func TestService(t *testing.T) {
@@ -124,20 +114,24 @@ func TestService(t *testing.T) {
 	s.RegisterService(new(Service1), "")
 
 	var res Service1Response
-	if err := execute(t, s, "Service1.Multiply", &Service1Request{4, 2}, &res); err != nil {
+	if _, err := execute(t, s, "Service1.Multiply", &Service1Request{4, 2}, &res); err != nil {
 		t.Error("Expected err to be nil, but got:", err)
 	}
 	if res.Result != 8 {
 		t.Errorf("Wrong response: %v.", res.Result)
 	}
-
-	if err := execute(t, s, "Service1.ResponseError", &Service1Request{4, 2}, &res); err == nil {
-		t.Errorf("Expected to get %q, but got nil", ErrResponseError)
-	} else if err.Error() != ErrResponseError.Error() {
-		t.Errorf("Expected to get %q, but got %q", ErrResponseError, err)
+	if res.ErrorMessage != "" {
+		t.Errorf("Expected error_message to be empty, but got:", res.ErrorMessage)
 	}
 
-	if code := executeRaw(t, s, &Service1BadRequest{"Service1.Multiply"}, &res); code != 400 {
+	if code, err := execute(t, s, "Service1.ResponseError", &Service1Request{4, 2}, &res); err != nil || code != 500 {
+		t.Errorf("Expected code to be 500 and error to be nil, but got", code, err)
+	}
+	if res.ErrorMessage == "" {
+		t.Errorf("Expected error_message to be %q, but got %q", ErrResponseError, res.ErrorMessage)
+	}
+
+	if code, _ := execute(t, s, "Service1.Multiply", nil, &res); code != 400 {
 		t.Errorf("Expected http response code 400, but got %v", code)
 	}
 }
