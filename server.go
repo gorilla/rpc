@@ -121,9 +121,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
-	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		writeError(w, 400, errRead.Error())
-		return
+	if methodSpec.argsType.NumField() > 0 {
+		if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
+			writeError(w, 400, errRead.Error())
+			return
+		}
 	}
 	// Call the service method.
 	reply := reflect.New(methodSpec.replyType)
