@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package json
+package json2
 
 import (
 	"bytes"
@@ -72,7 +72,9 @@ type Service1Request struct {
 }
 
 type Service1BadRequest struct {
-	M string `json:"method"`
+	V  string `json:"jsonrpc"`
+	M  string `json:"method"`
+	ID uint64 `json:"id"`
 }
 
 type Service1Response struct {
@@ -107,7 +109,7 @@ func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) e
 	return DecodeClientResponse(w.Body, res)
 }
 
-func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) int {
+func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) error {
 	j, _ := json.Marshal(req)
 	r, _ := http.NewRequest("POST", "http://localhost:8080/", bytes.NewBuffer(j))
 	r.Header.Set("Content-Type", "application/json")
@@ -115,7 +117,7 @@ func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) i
 	w := NewRecorder()
 	s.ServeHTTP(w, r)
 
-	return w.Code
+	return DecodeClientResponse(w.Body, res)
 }
 
 func TestService(t *testing.T) {
@@ -137,7 +139,7 @@ func TestService(t *testing.T) {
 		t.Errorf("Expected to get %q, but got %q", ErrResponseError, err)
 	}
 
-	if code := executeRaw(t, s, &Service1BadRequest{"Service1.Multiply"}, &res); code != 400 {
-		t.Errorf("Expected http response code 400, but got %v", code)
+	if err := executeRaw(t, s, &Service1BadRequest{"2.0", "Service1.Multiply", 1}, &res); err == nil {
+		t.Errorf("Expected error but error in nil")
 	}
 }
