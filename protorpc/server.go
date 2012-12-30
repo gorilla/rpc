@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package endpoints
+package protorpc
 
 import (
 	"encoding/json"
@@ -22,7 +22,7 @@ var null = json.RawMessage([]byte("null"))
 // Request and Response
 // ----------------------------------------------------------------------------
 
-// serverRequest represents a Google Cloud Endpoints request received by the server.
+// serverRequest represents a ProtoRPC request received by the server.
 type serverRequest struct {
 	// A String containing the name of the method to be invoked.
 	Method string `json:"method"`
@@ -33,7 +33,7 @@ type serverRequest struct {
 	Id *json.RawMessage `json:"id"`
 }
 
-// serverResponse represents a Google Cloud Endpoints response returned by the server.
+// serverResponse represents a ProtoRPC response returned by the server.
 type serverResponse struct {
 	// The Object that was returned by the invoked method. This must be null
 	// in case there was an error invoking the method.
@@ -49,7 +49,7 @@ type serverResponse struct {
 // Codec
 // ----------------------------------------------------------------------------
 
-// NewCodec returns a new Google Cloud Endpoints Codec.
+// NewCodec returns a new ProtoRPC Codec.
 func NewCodec() *Codec {
 	return &Codec{}
 }
