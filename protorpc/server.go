@@ -13,7 +13,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gorilla/rpc"
+	"github.com/ranveerkunal/rpc"
 )
 
 var null = json.RawMessage([]byte("null"))
@@ -140,4 +140,8 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 	encoder := json.NewEncoder(w)
 	encoder.Encode(res.Result)
 	return nil
+}
+
+func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+	rpc.WriteError(w, status, err.Error())
 }
