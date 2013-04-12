@@ -14,12 +14,33 @@ import (
 	"unicode"
 )
 
+// gzipWriter writes and closes the gzip writer.
+type gzipWriter struct {
+	w *gzip.Writer
+}
+
+func (gw *gzipWriter) Write(p []byte) (n int, err error) {
+	defer gw.w.Close()
+	return gw.w.Write(p)
+}
+
 // gzipEncoder implements the gzip compressed http encoder.
 type gzipEncoder struct {
 }
+
 func (enc *gzipEncoder) Encode(w http.ResponseWriter) io.Writer {
 	w.Header().Set("Content-Encoding", "gzip")
-	return gzip.NewWriter(w)
+	return &gzipWriter{gzip.NewWriter(w)}
+}
+
+// flateWriter writes and closes the flate writer.
+type flateWriter struct {
+	w *flate.Writer
+}
+
+func (fw *flateWriter) Write(p []byte) (n int, err error) {
+	defer fw.w.Close()
+	return fw.w.Write(p)
 }
 
 // flateEncoder implements the flate compressed http encoder.
@@ -27,12 +48,12 @@ type flateEncoder struct {
 }
 
 func (enc *flateEncoder) Encode(w http.ResponseWriter) io.Writer {
-	flateWriter, err := flate.NewWriter(w, flate.DefaultCompression)
+	fw, err := flate.NewWriter(w, flate.DefaultCompression)
 	if err != nil {
 		return w
 	}
 	w.Header().Set("Content-Encoding", "deflate")
-	return flateWriter
+	return &flateWriter{fw}
 }
 
 // CompressionSelector generates the compressed http encoder.

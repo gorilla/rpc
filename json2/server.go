@@ -160,11 +160,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		Result:  reply,
 		Id:      c.request.Id,
 	}
-	if c.request.Id != nil {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		encoder := json.NewEncoder(c.encoder.Encode(w))
-		encoder.Encode(res)
-	}
+	c.writeServerResponse(res, w)
 	return nil
 }
 
@@ -181,9 +177,21 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 		Error:   jsonErr,
 		Id:      c.request.Id,
 	}
+	c.writeServerResponse(res, w)
+}
+
+func (c *CodecRequest) writeServerResponse(res *serverResponse, w http.ResponseWriter) {
 	if c.request.Id != nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		encoder := json.NewEncoder(c.encoder.Encode(w))
-		encoder.Encode(res)
+		err := encoder.Encode(res)
+
+		// Not sure in which case will this happen. But seems harmless.
+		if err != nil {
+			rpc.WriteError(w, 400, err.Error())
+		}
 	}
+}
+
+type EmptyResponse struct {
 }
