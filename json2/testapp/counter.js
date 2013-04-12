@@ -43,7 +43,7 @@ $(document).ready(function() {
 			method : "Counter.Nan",
 			params : {},
 		};
-		log("<- " + JSON.stringify(req));
+		log("<- " + JSON.stringify(req), "label");
 		$.jsonrpc(req, {
 			success : function(result) {
 				$("#nan").addClass("success");
