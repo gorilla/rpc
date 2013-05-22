@@ -8,7 +8,7 @@ package json
 import (
 	"encoding/json"
 	"errors"
-	"github.com/ranveerkunal/rpc"
+	"github.com/gorilla/rpc"
 	"net/http"
 )
 
@@ -132,8 +132,4 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		encoder.Encode(res)
 	}
 	return nil
-}
-
-func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
-	rpc.WriteError(w, status, err.Error())
 }

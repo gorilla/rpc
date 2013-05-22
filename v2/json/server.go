@@ -3,17 +3,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package protorpc
+package json
 
 import (
 	"encoding/json"
 	"errors"
-	"strings"
-	"fmt"
-	"io"
+	"github.com/ranveerkunal/rpc"
 	"net/http"
-
-	"github.com/gorilla/rpc"
 )
 
 var null = json.RawMessage([]byte("null"))
@@ -22,7 +18,7 @@ var null = json.RawMessage([]byte("null"))
 // Request and Response
 // ----------------------------------------------------------------------------
 
-// serverRequest represents a ProtoRPC request received by the server.
+// serverRequest represents a JSON-RPC request received by the server.
 type serverRequest struct {
 	// A String containing the name of the method to be invoked.
 	Method string `json:"method"`
@@ -33,7 +29,7 @@ type serverRequest struct {
 	Id *json.RawMessage `json:"id"`
 }
 
-// serverResponse represents a ProtoRPC response returned by the server.
+// serverResponse represents a JSON-RPC response returned by the server.
 type serverResponse struct {
 	// The Object that was returned by the invoked method. This must be null
 	// in case there was an error invoking the method.
@@ -49,7 +45,7 @@ type serverResponse struct {
 // Codec
 // ----------------------------------------------------------------------------
 
-// NewCodec returns a new ProtoRPC Codec.
+// NewCodec returns a new JSON Codec.
 func NewCodec() *Codec {
 	return &Codec{}
 }
@@ -71,19 +67,9 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
-	path := r.URL.Path
-	index := strings.LastIndex(path, "/")
-	if index < 0 {
-		return &CodecRequest{request: req, err: fmt.Errorf("rpc: no method: %s", path)}
-	}
-	req.Method = path[index+1:]
-	err := json.NewDecoder(r.Body).Decode(&req.Params)
+	err := json.NewDecoder(r.Body).Decode(req)
 	r.Body.Close()
-	var errr error
-	if err != io.EOF {
-		errr = err
-	}
-	return &CodecRequest{request: req, err: errr}
+	return &CodecRequest{request: req, err: err}
 }
 
 // CodecRequest decodes and encodes a single request.
@@ -106,7 +92,10 @@ func (c *CodecRequest) Method() (string, error) {
 func (c *CodecRequest) ReadRequest(args interface{}) error {
 	if c.err == nil {
 		if c.request.Params != nil {
-			c.err = json.Unmarshal(*c.request.Params, args)
+			// JSON params is array value. RPC params is struct.
+			// Unmarshal into array containing the request struct.
+			params := [1]interface{}{args}
+			c.err = json.Unmarshal(*c.request.Params, &params)
 		} else {
 			c.err = errors.New("rpc: method request ill-formed: missing params field")
 		}
@@ -131,13 +120,20 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		// Propagate error message as string.
 		res.Error = methodErr.Error()
 		// Result must be null if there was an error invoking the method.
-		res.Result = &struct {
-			ErrorMessage interface{} `json:"error_message"`
-		}{res.Error}
-		w.WriteHeader(500)
+		// http://json-rpc.org/wiki/specification#a1.2Response
+		res.Result = &null
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	encoder := json.NewEncoder(w)
-	encoder.Encode(res.Result)
+	if c.request.Id == nil {
+		// Id is null for notifications and they don't have a response.
+		res.Id = &null
+	} else {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		encoder := json.NewEncoder(w)
+		encoder.Encode(res)
+	}
 	return nil
+}
+
+func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+	rpc.WriteError(w, status, err.Error())
 }
