@@ -7,9 +7,8 @@ package json2
 
 import (
 	"encoding/json"
+	"github.com/gorilla/rpc"
 	"net/http"
-
-	"github.com/gorilla/rpc/v2"
 )
 
 var null = json.RawMessage([]byte("null"))
@@ -73,7 +72,7 @@ type Codec struct {
 }
 
 // NewRequest returns a CodecRequest.
-func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
+func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequestErrorWriter {
 	return newCodecRequest(r, c.encSel.Select(r))
 }
 
@@ -82,7 +81,7 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 // ----------------------------------------------------------------------------
 
 // newCodecRequest returns a new CodecRequest.
-func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
+func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequestErrorWriter {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
@@ -145,13 +144,28 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 }
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
-func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
+//
+// The err parameter is the error resulted from calling the RPC method,
+// or nil if there was no error.
+func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
+	if c.err != nil {
+		return c.err
+	}
+	if methodErr != nil {
+		c.WriteError(w, 400, methodErr)
+		return nil
+	}
 	res := &serverResponse{
 		Version: Version,
 		Result:  reply,
 		Id:      c.request.Id,
 	}
-	c.writeServerResponse(w, res)
+	if c.request.Id != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		encoder := json.NewEncoder(c.encoder.Encode(w))
+		encoder.Encode(res)
+	}
+	return nil
 }
 
 func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
@@ -167,22 +181,9 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 		Error:   jsonErr,
 		Id:      c.request.Id,
 	}
-	c.writeServerResponse(w, res)
-}
-
-func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverResponse) {
-	// Id is null for notifications and they don't have a response.
 	if c.request.Id != nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		encoder := json.NewEncoder(c.encoder.Encode(w))
-		err := encoder.Encode(res)
-
-		// Not sure in which case will this happen. But seems harmless.
-		if err != nil {
-			rpc.WriteError(w, 400, err.Error())
-		}
+		encoder.Encode(res)
 	}
-}
-
-type EmptyResponse struct {
 }

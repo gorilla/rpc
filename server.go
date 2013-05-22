@@ -16,6 +16,22 @@ import (
 // Codec
 // ----------------------------------------------------------------------------
 
+// Creates the request and writes the error.
+type CodecErrorWriter interface {
+	NewRequest(*http.Request) CodecRequestErrorWriter
+}
+
+type codecErrorWriter struct {
+	codec Codec
+}
+
+func (cew *codecErrorWriter) NewRequest(req *http.Request) CodecRequestErrorWriter {
+	return &codecRequestErrorWriter{
+		cew.codec.NewRequest(req),
+		DefaultErrorWriter,
+	}
+}
+
 // Codec creates a CodecRequest to process each request.
 type Codec interface {
 	NewRequest(*http.Request) CodecRequest
@@ -33,6 +49,30 @@ type CodecRequest interface {
 	WriteResponse(http.ResponseWriter, interface{}, error) error
 }
 
+// ErrorWriter handles the error produced by the server.
+type ErrorWriter interface {
+	WriteError(w http.ResponseWriter, status int, err error)
+}
+
+type CodecRequestErrorWriter interface {
+	CodecRequest
+	ErrorWriter
+}
+
+type codecRequestErrorWriter struct {
+	CodecRequest
+	*errorWriter
+}
+
+type errorWriter struct {
+}
+
+func (ew *errorWriter) WriteError(w http.ResponseWriter, status int, err error) {
+	writeError(w, status, err.Error())
+}
+
+var DefaultErrorWriter = &errorWriter{}
+
 // ----------------------------------------------------------------------------
 // Server
 // ----------------------------------------------------------------------------
@@ -40,15 +80,20 @@ type CodecRequest interface {
 // NewServer returns a new RPC server.
 func NewServer() *Server {
 	return &Server{
-		codecs:   make(map[string]Codec),
+		codecs:   make(map[string]CodecErrorWriter),
 		services: new(serviceMap),
 	}
 }
 
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs   map[string]Codec
+	codecs   map[string]CodecErrorWriter
 	services *serviceMap
+}
+
+// RegisterCodecErrorWriter adds a new codec error writer to the server.
+func (s *Server) RegisterCodecErrorWriter(codec CodecErrorWriter, contentType string) {
+	s.codecs[strings.ToLower(contentType)] = codec
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -57,7 +102,7 @@ type Server struct {
 // XML. A codec is chosen based on the "Content-Type" header from the request,
 // excluding the charset definition.
 func (s *Server) RegisterCodec(codec Codec, contentType string) {
-	s.codecs[strings.ToLower(contentType)] = codec
+	s.codecs[strings.ToLower(contentType)] = &codecErrorWriter{codec}
 }
 
 // RegisterService adds a new service to the server.
@@ -111,18 +156,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	if errMethod != nil {
-		writeError(w, 400, errMethod.Error())
+		codecReq.WriteError(w, 400, errMethod)
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
-		writeError(w, 400, errGet.Error())
+		codecReq.WriteError(w, 400, errGet)
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		writeError(w, 400, errRead.Error())
+		codecReq.WriteError(w, 400, errRead)
 		return
 	}
 	// Call the service method.
@@ -144,7 +189,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("x-content-type-options", "nosniff")
 	// Encode the response.
 	if errWrite := codecReq.WriteResponse(w, reply.Interface(), errResult); errWrite != nil {
-		writeError(w, 400, errWrite.Error())
+		codecReq.WriteError(w, 400, errWrite)
 	}
 }
 
