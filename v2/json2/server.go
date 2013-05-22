@@ -146,9 +146,6 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
 func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
-	if c.err != nil {
-		return c.err
-	}
 	res := &serverResponse{
 		Version: Version,
 		Result:  reply,
