@@ -13,7 +13,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ranveerkunal/rpc"
+	"github.com/gorilla/rpc/v2"
 )
 
 var null = json.RawMessage([]byte("null"))
@@ -115,33 +115,41 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 }
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
-//
-// The err parameter is the error resulted from calling the RPC method,
-// or nil if there was no error.
-func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
+func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	if c.err != nil {
-		return c.err
+		c.WriteError(w, 400, c.err)
+		return
 	}
 	res := &serverResponse{
 		Result: reply,
 		Error:  &null,
 		Id:     c.request.Id,
 	}
-	if methodErr != nil {
-		// Propagate error message as string.
-		res.Error = methodErr.Error()
-		// Result must be null if there was an error invoking the method.
-		res.Result = &struct {
-			ErrorMessage interface{} `json:"error_message"`
-		}{res.Error}
-		w.WriteHeader(500)
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	encoder := json.NewEncoder(w)
-	encoder.Encode(res.Result)
-	return nil
+	c.writeServerResponse(w, 200, res)
 }
 
 func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
-	rpc.WriteError(w, status, err.Error())
+	res := &serverResponse{
+		Error:  err.Error(),
+		Id:     c.request.Id,
+	}
+	// Result must be null if there was an error invoking the method.
+	res.Result = &struct {
+		ErrorMessage interface{} `json:"error_message"`
+	}{res.Error}
+	c.writeServerResponse(w, 500, res)
+}
+
+func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, status int, res *serverResponse) {
+	// Id is null for notifications and they don't have a response.
+	if c.request.Id != nil {
+		w.WriteHeader(status)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		encoder := json.NewEncoder(w)
+		err := encoder.Encode(res)
+		// Not sure in which case will this happen. But seems harmless.
+		if err != nil {
+			rpc.WriteError(w, 400, err.Error())
+		}
+	}
 }

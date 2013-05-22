@@ -24,14 +24,13 @@ type Codec interface {
 // CodecRequest decodes a request and encodes a response using a specific
 // serialization scheme.
 type CodecRequest interface {
-	// Reads request and returns the RPC method name.
+	// Reads the request and returns the RPC method name.
 	Method() (string, error)
-	// Reads request filling the RPC method args.
+	// Reads the request filling the RPC method args.
 	ReadRequest(interface{}) error
-	// Writes response using the RPC method reply. The error parameter is
-	// the error returned by the method call, if any.
-	WriteResponse(http.ResponseWriter, interface{}, error) error
-	// Writes the error produced by the server.
+	// Writes the response using the RPC method reply.
+	WriteResponse(http.ResponseWriter, interface{})
+	// Writes an error produced by the server.
 	WriteError(w http.ResponseWriter, status int, err error)
 }
 
@@ -145,8 +144,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
 	// Encode the response.
-	if errWrite := codecReq.WriteResponse(w, reply.Interface(), errResult); errWrite != nil {
-		codecReq.WriteError(w, 400, errWrite)
+	if errResult == nil {
+		codecReq.WriteResponse(w, reply.Interface())
+	} else {
+		codecReq.WriteError(w, 400, errResult)
 	}
 }
 

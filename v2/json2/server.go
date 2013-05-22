@@ -7,8 +7,9 @@ package json2
 
 import (
 	"encoding/json"
-	"github.com/ranveerkunal/rpc"
 	"net/http"
+
+	"github.com/gorilla/rpc/v2"
 )
 
 var null = json.RawMessage([]byte("null"))
@@ -144,24 +145,16 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 }
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
-//
-// The err parameter is the error resulted from calling the RPC method,
-// or nil if there was no error.
-func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
+func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	if c.err != nil {
 		return c.err
-	}
-	if methodErr != nil {
-		c.WriteError(w, 400, methodErr)
-		return nil
 	}
 	res := &serverResponse{
 		Version: Version,
 		Result:  reply,
 		Id:      c.request.Id,
 	}
-	c.writeServerResponse(res, w)
-	return nil
+	c.writeServerResponse(w, res)
 }
 
 func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
@@ -177,10 +170,11 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 		Error:   jsonErr,
 		Id:      c.request.Id,
 	}
-	c.writeServerResponse(res, w)
+	c.writeServerResponse(w, res)
 }
 
-func (c *CodecRequest) writeServerResponse(res *serverResponse, w http.ResponseWriter) {
+func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverResponse) {
+	// Id is null for notifications and they don't have a response.
 	if c.request.Id != nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		encoder := json.NewEncoder(c.encoder.Encode(w))
