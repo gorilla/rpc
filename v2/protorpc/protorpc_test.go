@@ -27,7 +27,7 @@ type Service1BadRequest struct {
 }
 
 type Service1Response struct {
-	Result int
+	Result       int
 	ErrorMessage string `json:"error_message"`
 }
 

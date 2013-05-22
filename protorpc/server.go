@@ -8,10 +8,10 @@ package protorpc
 import (
 	"encoding/json"
 	"errors"
-	"strings"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/rpc"
 )
