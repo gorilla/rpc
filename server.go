@@ -31,6 +31,8 @@ type CodecRequest interface {
 	// Writes response using the RPC method reply. The error parameter is
 	// the error returned by the method call, if any.
 	WriteResponse(http.ResponseWriter, interface{}, error) error
+	// Writes the error produced by the server.
+	WriteError(w http.ResponseWriter, status int, err error)
 }
 
 // ----------------------------------------------------------------------------
@@ -93,7 +95,7 @@ func (s *Server) HasMethod(method string) bool {
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		writeError(w, 405, "rpc: POST method required, received "+r.Method)
+		WriteError(w, 405, "rpc: POST method required, received "+r.Method)
 		return
 	}
 	contentType := r.Header.Get("Content-Type")
@@ -103,7 +105,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	codec := s.codecs[strings.ToLower(contentType)]
 	if codec == nil {
-		writeError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
+		WriteError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
 		return
 	}
 	// Create a new codec request.
@@ -111,18 +113,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	if errMethod != nil {
-		writeError(w, 400, errMethod.Error())
+		codecReq.WriteError(w, 400, errMethod)
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
-		writeError(w, 400, errGet.Error())
+		codecReq.WriteError(w, 400, errGet)
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		writeError(w, 400, errRead.Error())
+		codecReq.WriteError(w, 400, errRead)
 		return
 	}
 	// Call the service method.
@@ -144,11 +146,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("x-content-type-options", "nosniff")
 	// Encode the response.
 	if errWrite := codecReq.WriteResponse(w, reply.Interface(), errResult); errWrite != nil {
-		writeError(w, 400, errWrite.Error())
+		codecReq.WriteError(w, 400, errWrite)
 	}
 }
 
-func writeError(w http.ResponseWriter, status int, msg string) {
+func WriteError(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprint(w, msg)
