@@ -116,10 +116,6 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
 func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
-	if c.err != nil {
-		c.WriteError(w, 400, c.err)
-		return
-	}
 	res := &serverResponse{
 		Result: reply,
 		Error:  &null,
@@ -130,26 +126,22 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 
 func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
 	res := &serverResponse{
-		Error: err.Error(),
-		Id:    c.request.Id,
+		Result: &struct {
+			ErrorMessage interface{} `json:"error_message"`
+		}{err.Error()},
+		Id: c.request.Id,
 	}
-	// Result must be null if there was an error invoking the method.
-	res.Result = &struct {
-		ErrorMessage interface{} `json:"error_message"`
-	}{res.Error}
-	c.writeServerResponse(w, 500, res)
+	c.writeServerResponse(w, status, res)
 }
 
 func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, status int, res *serverResponse) {
-	// Id is null for notifications and they don't have a response.
-	if c.request.Id != nil {
+	b, err := json.Marshal(res.Result)
+	if err == nil {
 		w.WriteHeader(status)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		encoder := json.NewEncoder(w)
-		err := encoder.Encode(res)
+		w.Write(b)
+	} else {
 		// Not sure in which case will this happen. But seems harmless.
-		if err != nil {
-			rpc.WriteError(w, 400, err.Error())
-		}
+		rpc.WriteError(w, 400, err.Error())
 	}
 }
