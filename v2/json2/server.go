@@ -43,11 +43,13 @@ type serverResponse struct {
 
 	// The Object that was returned by the invoked method. This must be null
 	// in case there was an error invoking the method.
-	Result interface{} `json:"result"`
+	// As per spec the member will be omitted if there was an error.
+	Result interface{} `json:"result,omitempty"`
 
 	// An Error object if there was an error invoking the method. It must be
 	// null if there was no error.
-	Error *Error `json:"error"`
+	// As per spec the member will be omitted if there was no error.
+	Error *Error `json:"error,omitempty"`
 
 	// This must be the same id as the request it is responding to.
 	Id *json.RawMessage `json:"id"`
