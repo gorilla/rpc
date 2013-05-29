@@ -136,11 +136,6 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 					Data:    c.request.Params,
 				}
 			}
-		} else {
-			c.err = &Error{
-				Code:    E_INVALID_REQ,
-				Message: "rpc: method request ill-formed: missing params field",
-			}
 		}
 	}
 	return c.err
