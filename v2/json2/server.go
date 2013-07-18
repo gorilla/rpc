@@ -169,7 +169,7 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 		Error:   jsonErr,
 		Id:      c.request.Id,
 	}
-	w.WriteHeader(status)
+	w.WriteHeader(jsonErr.HTTPStatus())
 	c.writeServerResponse(w, res)
 }
 

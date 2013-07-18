@@ -31,3 +31,10 @@ type Error struct {
 func (e *Error) Error() string {
 	return e.Message
 }
+
+func (e *Error) HTTPStatus() int {
+	if e.Code == E_INTERNAL || e.Code == E_SERVER {
+		return 500
+	}
+	return 400 // all other errors are based on a Bad Request
+}
