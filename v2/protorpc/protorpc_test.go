@@ -67,24 +67,21 @@ func TestService(t *testing.T) {
 
 	var res Service1Response
 	if _, err := execute(t, s, "Service1.Multiply", &Service1Request{4, 2}, &res); err != nil {
-		t.Errorf("Expected err to be nil, but got: %v", err)
+		t.Error("Expected err to be nil, but got:", err)
 	}
 	if res.Result != 8 {
-		t.Errorf("Wrong response: %v.", res.Result)
+		t.Error("Expected res.Result to be 8, but got:", res.Result)
 	}
 	if res.ErrorMessage != "" {
-		t.Errorf("Expected error_message to be empty, but got:", res.ErrorMessage)
+		t.Error("Expected error_message to be empty, but got:", res.ErrorMessage)
 	}
-
-	// Should this code be 500?
 	if code, err := execute(t, s, "Service1.ResponseError", &Service1Request{4, 2}, &res); err != nil || code != 400 {
-		t.Errorf("Expected code to be 500 and error to be nil, but got %v (%v)", code, err)
+		t.Errorf("Expected code to be 400 and error to be nil, but got %v (%v)", code, err)
 	}
 	if res.ErrorMessage == "" {
 		t.Errorf("Expected error_message to be %q, but got %q", ErrResponseError, res.ErrorMessage)
 	}
-
 	if code, _ := execute(t, s, "Service1.Multiply", nil, &res); code != 400 {
-		t.Errorf("Expected http response code 400, but got %v", code)
+		t.Error("Expected http response code 400, but got", code)
 	}
 }
