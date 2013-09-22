@@ -117,15 +117,12 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	}
 }
 
-func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+func (c *CodecRequest) WriteError(w http.ResponseWriter, _ int, err error) {
 	res := &serverResponse{
-		Error: err.Error(),
-		Id:    c.request.Id,
+		Result: &null,
+		Error:  err.Error(),
+		Id:     c.request.Id,
 	}
-	// Result must be null if there was an error invoking the method.
-	res.Result = &struct {
-		ErrorMessage interface{} `json:"error_message"`
-	}{res.Error}
 	c.writeServerResponse(w, 400, res)
 }
 
