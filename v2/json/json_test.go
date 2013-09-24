@@ -11,12 +11,19 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/gorilla/rpc/v2"
 )
 
-var ErrResponseError = errors.New("response error")
+var (
+	ErrResponseError     = errors.New("response error")
+	ErrResponseJsonError = &Error{Data: map[string]interface{}{
+		"stackstrace": map[string]interface{}{"0": "foo()"},
+		"error":       "a message",
+	}}
+)
 
 type Service1Request struct {
 	A int
@@ -37,6 +44,10 @@ func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1
 
 func (t *Service1) ResponseError(r *http.Request, req *Service1Request, res *Service1Response) error {
 	return ErrResponseError
+}
+
+func (t *Service1) ResponseJsonError(r *http.Request, req *Service1Request, res *Service1Response) error {
+	return ErrResponseJsonError
 }
 
 func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) error {
@@ -95,5 +106,12 @@ func TestService(t *testing.T) {
 		t.Error("Expected response code to be 400, but got", code)
 	} else if v, ok := field("result", res.Bytes()); !ok || v != nil {
 		t.Errorf("Expected ok to be true and v to be nil, but got %v and %v", ok, v)
+	}
+	if err := execute(t, s, "Service1.ResponseJsonError", &Service1Request{4, 2}, &res); err == nil {
+		t.Errorf("Expected to get %q, but got nil", ErrResponseError)
+	} else if jsonErr, ok := err.(*Error); !ok {
+		t.Error("Expected err to be of a *json.Error type")
+	} else if !reflect.DeepEqual(jsonErr.Data, ErrResponseJsonError.Data) {
+		t.Errorf("Expected jsonErr to be %q, but got %q", ErrResponseJsonError, jsonErr)
 	}
 }

@@ -120,8 +120,12 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 func (c *CodecRequest) WriteError(w http.ResponseWriter, _ int, err error) {
 	res := &serverResponse{
 		Result: &null,
-		Error:  err.Error(),
 		Id:     c.request.Id,
+	}
+	if jsonErr, ok := err.(*Error); ok {
+		res.Error = jsonErr.Data
+	} else {
+		res.Error = err.Error()
 	}
 	c.writeServerResponse(w, 400, res)
 }
