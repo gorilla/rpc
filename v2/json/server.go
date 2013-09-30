@@ -8,12 +8,24 @@ package json
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/rpc/v2"
 )
 
 var null = json.RawMessage([]byte("null"))
+
+// An Error is a wrapper for a JSON interface value. It can be used by either
+// a service's handler func to write more complex JSON data to an error field
+// of a server's response, or by a client to read it.
+type Error struct {
+	Data interface{}
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("%v", e.Data)
+}
 
 // ----------------------------------------------------------------------------
 // Request and Response
