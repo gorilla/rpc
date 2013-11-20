@@ -16,18 +16,12 @@ import (
 )
 
 var (
-	typeOfOsError reflect.Type
-	typeOfRequest reflect.Type
+	// Precompute the reflect type for os.Error.  Can't use os.Error directly
+	// because Typeof takes an empty interface value.  This is annoying.
+	typeOfOsError = reflect.TypeOf((*error)(nil)).Elem()
+	// Same as above, this time for http.Request.
+	typeOfRequest = reflect.TypeOf((*http.Request)(nil)).Elem()
 )
-
-func init() {
-	// Precompute the reflect type for os.Error and http.Request. Can't use them
-	// directly because TypeOf takes an empty interface value.  This is annoying.
-	var err *error
-	var r *http.Request
-	typeOfOsError = reflect.TypeOf(err).Elem()
-	typeOfRequest = reflect.TypeOf(r).Elem()
-}
 
 // ----------------------------------------------------------------------------
 // service
