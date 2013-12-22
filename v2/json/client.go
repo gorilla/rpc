@@ -1,5 +1,5 @@
 // Copyright 2009 The Go Authors. All rights reserved.
-// Copyright 2012 The Gorilla Authors. All rights reserved.
+// Copyright 2012-2013 The Gorilla Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package json
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"math/rand"
 )
@@ -52,7 +51,7 @@ func DecodeClientResponse(r io.Reader, reply interface{}) error {
 		return err
 	}
 	if c.Error != nil {
-		return fmt.Errorf("%v", c.Error)
+		return &Error{Data: c.Error}
 	}
 	return json.Unmarshal(*c.Result, reply)
 }
