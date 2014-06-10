@@ -27,6 +27,11 @@ func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1
 	return nil
 }
 
+func (t *Service1) Add(req *Service1Request, res *Service1Response) error {
+	res.Result = req.A + req.B
+	return nil
+}
+
 type Service2 struct {
 }
 
@@ -48,6 +53,29 @@ func TestRegisterService(t *testing.T) {
 	}
 	// No methods.
 	err = s.RegisterService(service2, "")
+	if err == nil {
+		t.Errorf("Expected error on service2")
+	}
+}
+
+func TestRegisterTCPService(t *testing.T) {
+	var err error
+	s := NewServer()
+	service1 := new(Service1)
+	service2 := new(Service2)
+
+	// Inferred name.
+	err = s.RegisterTCPService(service1, "")
+	if err != nil || !s.HasMethod("Service1.Add") {
+		t.Errorf("Expected to be registered: Service1.Add")
+	}
+	// Provided name.
+	err = s.RegisterTCPService(service1, "Foo")
+	if err != nil || !s.HasMethod("Foo.Add") {
+		t.Errorf("Expected to be registered: Foo.Add")
+	}
+	// No methods.
+	err = s.RegisterTCPService(service2, "")
 	if err == nil {
 		t.Errorf("Expected error on service2")
 	}
