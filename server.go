@@ -77,7 +77,28 @@ func (s *Server) RegisterCodec(codec Codec, contentType string) {
 //
 // All other methods are ignored.
 func (s *Server) RegisterService(receiver interface{}, name string) error {
-	return s.services.register(receiver, name)
+	return s.services.register(receiver, name, true)
+}
+
+// RegisterTCPService adds a new TCP service to the server.
+// No HTTP request struct will be passed to the service methods.
+//
+// The name parameter is optional: if empty it will be inferred from
+// the receiver type name.
+//
+// Methods from the receiver will be extracted if these rules are satisfied:
+//
+//    - The receiver is exported (begins with an upper case letter) or local
+//      (defined in the package registering the service).
+//    - The method name is exported.
+//    - The method has two arguments: *args, *reply.
+//    - Both arguments are pointers.
+//    - Both arguments are exported or local.
+//    - The method has return type error.
+//
+// All other methods are ignored.
+func (s *Server) RegisterTCPService(receiver interface{}, name string) error {
+	return s.services.register(receiver, name, false)
 }
 
 // HasMethod returns true if the given method is registered.
@@ -127,12 +148,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Call the service method.
 	reply := reflect.New(methodSpec.replyType)
-	errValue := methodSpec.method.Func.Call([]reflect.Value{
-		serviceSpec.rcvr,
-		reflect.ValueOf(r),
-		args,
-		reply,
-	})
+
+	// omit the HTTP request if the service method doesn't accept it
+	var errValue []reflect.Value
+	if serviceSpec.passReq {
+		errValue = methodSpec.method.Func.Call([]reflect.Value{
+			serviceSpec.rcvr,
+			reflect.ValueOf(r),
+			args,
+			reply,
+		})
+	} else {
+		errValue = methodSpec.method.Func.Call([]reflect.Value{
+			serviceSpec.rcvr,
+			args,
+			reply,
+		})
+	}
+
 	// Cast the result to error if needed.
 	var errResult error
 	errInter := errValue[0].Interface()
