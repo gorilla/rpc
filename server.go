@@ -41,14 +41,17 @@ type CodecRequest interface {
 func NewServer() *Server {
 	return &Server{
 		codecs:   make(map[string]Codec),
+		methods:  map[string]struct{}{"POST": struct{}{}},
 		services: new(serviceMap),
 	}
 }
 
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs   map[string]Codec
-	services *serviceMap
+	codecs       map[string]Codec
+	defaultCodec *Codec
+	methods      map[string]struct{}
+	services     *serviceMap
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -113,8 +116,9 @@ func (s *Server) HasMethod(method string) bool {
 
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		writeError(w, 405, "rpc: POST method required, received "+r.Method)
+	_, ok := s.methods[r.Method]
+	if !ok {
+		writeError(w, 405, "rpc: method not allowed: "+r.Method)
 		return
 	}
 	contentType := r.Header.Get("Content-Type")
@@ -122,7 +126,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if idx != -1 {
 		contentType = contentType[:idx]
 	}
-	codec := s.codecs[strings.ToLower(contentType)]
+	codec, ok := s.codecs[strings.ToLower(contentType)]
+	if !ok {
+		codec = *s.defaultCodec
+	}
 	if codec == nil {
 		writeError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
 		return
