@@ -5,6 +5,10 @@
 
 package json2
 
+import (
+	"errors"
+)
+
 type ErrorCode int
 
 const (
@@ -15,6 +19,8 @@ const (
 	E_INTERNAL    ErrorCode = -32603
 	E_SERVER      ErrorCode = -32000
 )
+
+var ErrNullResult = errors.New("result is null")
 
 type Error struct {
 	// A Number that indicates the error type that occurred.

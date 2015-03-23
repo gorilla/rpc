@@ -151,8 +151,8 @@ func TestDecodeNullResult(t *testing.T) {
 
 	err := DecodeClientResponse(reader, &result)
 
-	if err != nil {
-		t.Error("Expected err no be nil, but got:", err)
+	if err != ErrNullResult {
+		t.Error("Expected err no be ErrNullResult, but got:", err)
 	}
 
 	if result != nil {
