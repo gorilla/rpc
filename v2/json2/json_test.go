@@ -143,3 +143,19 @@ func TestService(t *testing.T) {
 		t.Errorf("Expected error but error in nil")
 	}
 }
+
+func TestDecodeNullResult(t *testing.T) {
+	data := `{"jsonrpc": "2.0", "id": 12345, "result": null}`
+	reader := bytes.NewReader([]byte(data))
+	var result interface{}
+
+	err := DecodeClientResponse(reader, &result)
+
+	if err != nil {
+		t.Error("Expected err no be nil, but got:", err)
+	}
+
+	if result != nil {
+		t.Error("Expected result to be nil, but got:", result)
+	}
+}
