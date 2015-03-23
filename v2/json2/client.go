@@ -66,5 +66,10 @@ func DecodeClientResponse(r io.Reader, reply interface{}) error {
 		}
 		return jsonErr
 	}
-	return json.Unmarshal(*c.Result, reply)
+
+	if c.Result != nil {
+		return json.Unmarshal(*c.Result, reply)
+	}
+
+	return nil
 }
