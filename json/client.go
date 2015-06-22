@@ -7,6 +7,7 @@ package json
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -53,6 +54,9 @@ func DecodeClientResponse(r io.Reader, reply interface{}) error {
 	}
 	if c.Error != nil {
 		return fmt.Errorf("%v", c.Error)
+	}
+	if c.Result == nil {
+		return errors.New("result is null")
 	}
 	return json.Unmarshal(*c.Result, reply)
 }
