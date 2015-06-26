@@ -111,6 +111,14 @@ func (s *Server) HasMethod(method string) bool {
 	return false
 }
 
+// RenameMethod allows to rename a method. This can be used to implement lower-case
+// method names, e.g. system.multicall
+//
+// Example: RenameMethod("system.Multicall", "multicall")
+func (s *Server) RenameMethod(oldname, newname string) error {
+	return s.services.rename(oldname, newname)
+}
+
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {

@@ -88,7 +88,7 @@ func (m *serviceMap) register(rcvr interface{}, name string, passReq bool) error
 			continue
 		}
 		// Method needs four ins: receiver, *http.Request, *args, *reply.
-		if mtype.NumIn() != 3 + paramOffset {
+		if mtype.NumIn() != 3+paramOffset {
 			continue
 		}
 
@@ -161,6 +161,32 @@ func (m *serviceMap) get(method string) (*service, *serviceMethod, error) {
 		return nil, nil, err
 	}
 	return service, serviceMethod, nil
+}
+
+// rename renames a registered method given a method name.
+//
+// The old method name uses a dotted notation as in "Service.Method".,
+// The new method name just uses the 2nd part.
+func (m *serviceMap) rename(oldname, newname string) error {
+	parts := strings.Split(oldname, ".")
+	if len(parts) != 2 {
+		err := fmt.Errorf("rpc: service/method request ill-formed: %q", oldname)
+		return err
+	}
+	m.mutex.Lock()
+	service := m.services[parts[0]]
+	m.mutex.Unlock()
+	if service == nil {
+		err := fmt.Errorf("rpc: can't find service %q", oldname)
+		return err
+	}
+	if sm, ok := service.methods[parts[1]]; ok {
+		delete(service.methods, parts[1])
+		service.methods[newname] = sm
+		return nil
+	}
+	err := fmt.Errorf("rpc: can't find method %q", oldname)
+	return err
 }
 
 // isExported returns true of a string is an exported (upper case) name.
