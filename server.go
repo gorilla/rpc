@@ -45,10 +45,18 @@ func NewServer() *Server {
 	}
 }
 
+type AfterFunc func(i *RequestInfo)
+
+type RequestInfo struct {
+	Method string
+	Error  error
+}
+
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs   map[string]Codec
-	services *serviceMap
+	codecs    map[string]Codec
+	services  *serviceMap
+	afterFunc *AfterFunc
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -109,6 +117,12 @@ func (s *Server) HasMethod(method string) bool {
 		return true
 	}
 	return false
+}
+
+// RegisterAfterFunc registers the specified function as the function
+// that will be called after every request containing
+func (s *Server) RegisterAfterFunc(f AfterFunc) {
+	s.afterFunc = &f
 }
 
 // ServeHTTP
@@ -172,6 +186,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if errInter != nil {
 		errResult = errInter.(error)
 	}
+
+	// Call the registered After Function
+	if s.afterFunc != nil {
+		(*s.afterFunc)(&RequestInfo{
+			Method: method,
+			Error:  errResult,
+		})
+	}
+
 	// Prevents Internet Explorer from MIME-sniffing a response away
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
