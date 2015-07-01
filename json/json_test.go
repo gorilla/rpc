@@ -43,6 +43,10 @@ func (t *Service1) ResponseError(r *http.Request, req *Service1Request, res *Ser
 	return ErrResponseError
 }
 
+func (s *Service1) GetAllEmpty(r *http.Request, req *Service1Request, res *[]Service1Response) error {
+	return nil
+}
+
 func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) error {
 	if !s.HasMethod(method) {
 		t.Fatal("Expected to be registered:", method)
@@ -91,5 +95,16 @@ func TestService(t *testing.T) {
 
 	if code := executeRaw(t, s, &Service1BadRequest{"Service1.Multiply"}, &res); code != 400 {
 		t.Errorf("Expected http response code 400, but got %v", code)
+	}
+}
+
+func TestServiceSlice(t *testing.T) {
+	s := rpc.NewServer()
+	s.RegisterCodec(NewCodec(), "application/json")
+	s.RegisterService(new(Service1), "")
+
+	res := []Service1Response{}
+	if err := execute(t, s, "Service1.GetAllEmpty", &Service1Request{}, &res); err != nil {
+		t.Error("Expected err to be nil, but got:", err)
 	}
 }

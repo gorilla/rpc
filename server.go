@@ -149,6 +149,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Call the service method.
 	reply := reflect.New(methodSpec.replyType)
 
+	// Initialize empty slice
+	if methodSpec.replyType.Kind() == reflect.Slice {
+		reply.Elem().Set(reflect.MakeSlice(methodSpec.replyType, 0, 0))
+	}
+
 	// omit the HTTP request if the service method doesn't accept it
 	var errValue []reflect.Value
 	if serviceSpec.passReq {
