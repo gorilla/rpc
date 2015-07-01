@@ -57,8 +57,8 @@ type RequestInfo struct {
 type Server struct {
 	codecs     map[string]Codec
 	services   *serviceMap
-	beforeFunc *func(i *RequestInfo)
-	afterFunc  *func(i *RequestInfo)
+	beforeFunc func(i *RequestInfo)
+	afterFunc  func(i *RequestInfo)
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -123,14 +123,16 @@ func (s *Server) HasMethod(method string) bool {
 
 // RegisterBeforeFunc registers the specified function as the function
 // that will be called before every request
-func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
-	s.beforeFunc = &f
+func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) error {
+	s.beforeFunc = f
+	return nil
 }
 
 // RegisterAfterFunc registers the specified function as the function
 // that will be called after every request
-func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
-	s.afterFunc = &f
+func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) error {
+	s.afterFunc = f
+	return nil
 }
 
 // ServeHTTP
@@ -171,7 +173,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Call the registered Before Function
 	if s.beforeFunc != nil {
-		(*s.beforeFunc)(&RequestInfo{
+		s.beforeFunc(&RequestInfo{
 			Request: r,
 			Method:  method,
 		})
@@ -213,7 +215,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Call the registered After Function
 		if s.afterFunc != nil {
-			(*s.afterFunc)(&RequestInfo{
+			s.afterFunc(&RequestInfo{
 				Request:    r,
 				Method:     method,
 				Error:      errResult,
@@ -228,7 +230,7 @@ func (s *Server) writeError(w http.ResponseWriter, status int, msg string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprint(w, msg)
 	if s.afterFunc != nil {
-		(*s.afterFunc)(&RequestInfo{
+		s.afterFunc(&RequestInfo{
 			Error:      fmt.Errorf(msg),
 			StatusCode: status,
 		})
