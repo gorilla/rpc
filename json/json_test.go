@@ -9,10 +9,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/context"
 	"github.com/gorilla/rpc"
 )
 
@@ -41,6 +43,15 @@ func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1
 
 func (t *Service1) ResponseError(r *http.Request, req *Service1Request, res *Service1Response) error {
 	return ErrResponseError
+}
+
+func (t *Service1) BeforeAfter(r *http.Request, req *Service1Request, res *Service1Response) error {
+	if _, ok := context.GetOk(r, "before"); !ok {
+		return fmt.Errorf("before value not found")
+	}
+	context.Set(r, "result", 1)
+	res.Result = 1
+	return nil
 }
 
 func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) error {
@@ -92,4 +103,41 @@ func TestService(t *testing.T) {
 	if code := executeRaw(t, s, &Service1BadRequest{"Service1.Multiply"}, &res); code != 400 {
 		t.Errorf("Expected http response code 400, but got %v", code)
 	}
+}
+
+func TestServiceBeforeAfter(t *testing.T) {
+	s := rpc.NewServer()
+	s.RegisterCodec(NewCodec(), "application/json")
+	s.RegisterService(new(Service1), "")
+
+	buf, _ := EncodeClientRequest("Service1.BeforeAfter", nil)
+	body := bytes.NewBuffer(buf)
+	r, _ := http.NewRequest("POST", "http://localhost:8080/", body)
+
+	s.RegisterBeforeFunc(func(i *rpc.RequestInfo) {
+		context.Set(r, "before", "Before is true")
+	})
+	s.RegisterAfterFunc(func(i *rpc.RequestInfo) {
+		context.Set(r, "after", "After is true")
+	})
+
+	var res Service1Response
+	r.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+
+	err := DecodeClientResponse(w.Body, &res)
+	if err != nil {
+		t.Errorf("Expected no error, got %s", err.Error())
+	}
+
+	if afterValue := context.Get(r, "after").(string); afterValue != "After is true" {
+		t.Errorf("Expected after in context to be 'After is true', got %s", afterValue)
+	}
+
+	if reqValue := context.Get(r, "result").(int); reqValue != res.Result {
+		t.Errorf("Expected context result value to be equal to res.Result, got %d", reqValue)
+	}
+
 }
