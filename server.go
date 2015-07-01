@@ -49,7 +49,7 @@ func NewServer() *Server {
 type RequestInfo struct {
 	Method     string
 	Error      error
-	Request    http.Request
+	Request    *http.Request
 	StatusCode int
 }
 
