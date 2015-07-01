@@ -8,8 +8,9 @@ package json
 import (
 	"encoding/json"
 	"errors"
-	"github.com/gorilla/rpc"
 	"net/http"
+
+	"github.com/segmentio/gorilla-rpc"
 )
 
 var null = json.RawMessage([]byte("null"))
