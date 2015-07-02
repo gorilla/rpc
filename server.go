@@ -128,7 +128,6 @@ func (s *Server) HasMethod(method string) bool {
 // method will overwrite all the previous functions.
 func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
 	s.beforeFunc = f
-	return nil
 }
 
 // RegisterAfterFunc registers the specified function as the function
@@ -138,7 +137,6 @@ func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
 // method will overwrite all the previous functions.
 func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
 	s.afterFunc = f
-	return nil
 }
 
 // ServeHTTP
