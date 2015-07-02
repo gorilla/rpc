@@ -122,15 +122,21 @@ func (s *Server) HasMethod(method string) bool {
 }
 
 // RegisterBeforeFunc registers the specified function as the function
-// that will be called before every request
-func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) error {
+// that will be called before every request.
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
 	s.beforeFunc = f
 	return nil
 }
 
 // RegisterAfterFunc registers the specified function as the function
 // that will be called after every request
-func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) error {
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
 	s.afterFunc = f
 	return nil
 }
