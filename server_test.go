@@ -80,18 +80,3 @@ func TestRegisterTCPService(t *testing.T) {
 		t.Errorf("Expected error on service2")
 	}
 }
-
-func TestRegisterBeforeAfterFunc(t *testing.T) {
-	var err error
-	s := NewServer()
-
-	err = s.RegisterBeforeFunc(func(i *RequestInfo) {})
-	if err != nil {
-		t.Errorf("Expected to be nil")
-	}
-
-	err = s.RegisterAfterFunc(func(i *RequestInfo) {})
-	if err != nil {
-		t.Errorf("Expected to be nil")
-	}
-}
