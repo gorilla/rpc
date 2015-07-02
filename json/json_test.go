@@ -19,8 +19,6 @@ import (
 
 var ErrResponseError = errors.New("response error")
 
-var beforeAfterContext = map[string]string{}
-
 type Service1Request struct {
 	A int
 	B int
@@ -35,6 +33,7 @@ type Service1Response struct {
 }
 
 type Service1 struct {
+	beforeAfterContext map[string]string
 }
 
 func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1Response) error {
@@ -47,7 +46,7 @@ func (t *Service1) ResponseError(r *http.Request, req *Service1Request, res *Ser
 }
 
 func (t *Service1) BeforeAfter(r *http.Request, req *Service1Request, res *Service1Response) error {
-	if _, ok := beforeAfterContext["before"]; !ok {
+	if _, ok := t.beforeAfterContext["before"]; !ok {
 		return fmt.Errorf("before value not found in context")
 	}
 	res.Result = 1
@@ -108,13 +107,15 @@ func TestService(t *testing.T) {
 func TestServiceBeforeAfter(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
-	s.RegisterService(new(Service1), "")
+	service := Service1{}
+	service.beforeAfterContext = map[string]string{}
+	s.RegisterService(new(service), "")
 
 	s.RegisterBeforeFunc(func(i *rpc.RequestInfo) {
-		beforeAfterContext["before"] = "Before is true"
+		service.beforeAfterContext["before"] = "Before is true"
 	})
 	s.RegisterAfterFunc(func(i *rpc.RequestInfo) {
-		beforeAfterContext["after"] = "After is true"
+		service.beforeAfterContext["after"] = "After is true"
 	})
 
 	var res Service1Response
@@ -126,7 +127,7 @@ func TestServiceBeforeAfter(t *testing.T) {
 		t.Errorf("Expected Result = 1, got %d", res.Result)
 	}
 
-	if afterValue, ok := beforeAfterContext["after"]; !ok || afterValue != "After is true" {
+	if afterValue, ok := service.beforeAfterContext["after"]; !ok || afterValue != "After is true" {
 		t.Errorf("Expected after in context to be 'After is true', got %s", afterValue)
 	}
 }
