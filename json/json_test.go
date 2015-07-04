@@ -107,7 +107,7 @@ func TestService(t *testing.T) {
 func TestServiceBeforeAfter(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
-	service := Service1{}
+	service := &Service1{}
 	service.beforeAfterContext = map[string]string{}
 	s.RegisterService(service, "")
 
