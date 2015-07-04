@@ -109,7 +109,7 @@ func TestServiceBeforeAfter(t *testing.T) {
 	s.RegisterCodec(NewCodec(), "application/json")
 	service := Service1{}
 	service.beforeAfterContext = map[string]string{}
-	s.RegisterService(new(service), "")
+	s.RegisterService(service, "")
 
 	s.RegisterBeforeFunc(func(i *rpc.RequestInfo) {
 		service.beforeAfterContext["before"] = "Before is true"
