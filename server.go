@@ -45,10 +45,20 @@ func NewServer() *Server {
 	}
 }
 
+// RequestInfo contains all the information we pass to before/after functions
+type RequestInfo struct {
+	Method     string
+	Error      error
+	Request    *http.Request
+	StatusCode int
+}
+
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs   map[string]Codec
-	services *serviceMap
+	codecs     map[string]Codec
+	services   *serviceMap
+	beforeFunc func(i *RequestInfo)
+	afterFunc  func(i *RequestInfo)
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -111,10 +121,28 @@ func (s *Server) HasMethod(method string) bool {
 	return false
 }
 
+// RegisterBeforeFunc registers the specified function as the function
+// that will be called before every request.
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
+	s.beforeFunc = f
+}
+
+// RegisterAfterFunc registers the specified function as the function
+// that will be called after every request
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
+	s.afterFunc = f
+}
+
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		writeError(w, 405, "rpc: POST method required, received "+r.Method)
+		s.writeError(w, 405, "rpc: POST method required, received "+r.Method)
 		return
 	}
 	contentType := r.Header.Get("Content-Type")
@@ -124,7 +152,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	codec := s.codecs[strings.ToLower(contentType)]
 	if codec == nil {
-		writeError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
+		s.writeError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
 		return
 	}
 	// Create a new codec request.
@@ -132,20 +160,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	if errMethod != nil {
-		writeError(w, 400, errMethod.Error())
+		s.writeError(w, 400, errMethod.Error())
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
-		writeError(w, 400, errGet.Error())
+		s.writeError(w, 400, errGet.Error())
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		writeError(w, 400, errRead.Error())
+		s.writeError(w, 400, errRead.Error())
 		return
 	}
+
+	// Call the registered Before Function
+	if s.beforeFunc != nil {
+		s.beforeFunc(&RequestInfo{
+			Request: r,
+			Method:  method,
+		})
+	}
+
 	// Call the service method.
 	reply := reflect.New(methodSpec.replyType)
 
@@ -172,17 +209,34 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if errInter != nil {
 		errResult = errInter.(error)
 	}
+
 	// Prevents Internet Explorer from MIME-sniffing a response away
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
 	// Encode the response.
 	if errWrite := codecReq.WriteResponse(w, reply.Interface(), errResult); errWrite != nil {
-		writeError(w, 400, errWrite.Error())
+		s.writeError(w, 400, errWrite.Error())
+	} else {
+		// Call the registered After Function
+		if s.afterFunc != nil {
+			s.afterFunc(&RequestInfo{
+				Request:    r,
+				Method:     method,
+				Error:      errResult,
+				StatusCode: 200,
+			})
+		}
 	}
 }
 
-func writeError(w http.ResponseWriter, status int, msg string) {
+func (s *Server) writeError(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprint(w, msg)
+	if s.afterFunc != nil {
+		s.afterFunc(&RequestInfo{
+			Error:      fmt.Errorf(msg),
+			StatusCode: status,
+		})
+	}
 }
