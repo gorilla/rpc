@@ -115,3 +115,18 @@ func TestService(t *testing.T) {
 		t.Errorf("Expected jsonErr to be %q, but got %q", ErrResponseJsonError, jsonErr)
 	}
 }
+
+func TestClientNullResult(t *testing.T) {
+	data := `{"jsonrpc": "2.0", "id": 8674665223082153551, "result": null}`
+	reader := bytes.NewReader([]byte(data))
+
+	var reply interface{}
+
+	err := DecodeClientResponse(reader, &reply)
+	if err == nil {
+		t.Fatal(err)
+	}
+	if err.Error() != "Unexpected null result" {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+}
