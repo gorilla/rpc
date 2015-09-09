@@ -19,8 +19,8 @@ var Version = "2.0"
 // Request and Response
 // ----------------------------------------------------------------------------
 
-// serverRequest represents a JSON-RPC request received by the server.
-type serverRequest struct {
+// ServerRequest represents a JSON-RPC request received by the server.
+type ServerRequest struct {
 	// JSON-RPC protocol.
 	Version string `json:"jsonrpc"`
 
@@ -36,8 +36,8 @@ type serverRequest struct {
 	Id *json.RawMessage `json:"id"`
 }
 
-// serverResponse represents a JSON-RPC response returned by the server.
-type serverResponse struct {
+// ServerResponse represents a JSON-RPC response returned by the server.
+type ServerResponse struct {
 	// JSON-RPC protocol.
 	Version string `json:"jsonrpc"`
 
@@ -86,7 +86,7 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 // newCodecRequest returns a new CodecRequest.
 func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
-	req := new(serverRequest)
+	req := new(ServerRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		err = &Error{
@@ -103,13 +103,17 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
 		}
 	}
 	r.Body.Close()
-	return &CodecRequest{request: req, err: err, encoder: encoder}
+	return &CodecRequest{Request: req, Err: err, encoder: encoder}
 }
 
 // CodecRequest decodes and encodes a single request.
 type CodecRequest struct {
-	request *serverRequest
-	err     error
+	// The request being handled
+	Request *ServerRequest
+
+	// If the request couldn't be decoded, or was the wrong version, this will
+	// be non-nil
+	Err     error
 	encoder rpc.Encoder
 }
 
@@ -117,35 +121,35 @@ type CodecRequest struct {
 //
 // The method uses a dotted notation as in "Service.Method".
 func (c *CodecRequest) Method() (string, error) {
-	if c.err == nil {
-		return c.request.Method, nil
+	if c.Err == nil {
+		return c.Request.Method, nil
 	}
-	return "", c.err
+	return "", c.Err
 }
 
-// ReadRe<quest fills the request object for the RPC method.
+// ReadRequest fills the request object for the RPC method.
 func (c *CodecRequest) ReadRequest(args interface{}) error {
-	if c.err == nil && c.request.Params != nil {
-		// Note: if c.request.Params is nil it's not an error, it's an optional member.
+	if c.Err == nil && c.Request.Params != nil {
+		// Note: if c.Request.Params is nil it's not an error, it's an optional member.
 		// JSON params structured object. Unmarshal to the args object.
-		err := json.Unmarshal(*c.request.Params, args)
+		err := json.Unmarshal(*c.Request.Params, args)
 		if err != nil {
-			c.err = &Error{
+			c.Err = &Error{
 				Code:    E_INVALID_REQ,
 				Message: err.Error(),
-				Data:    c.request.Params,
+				Data:    c.Request.Params,
 			}
 		}
 	}
-	return c.err
+	return c.Err
 }
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
 func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
-	res := &serverResponse{
+	res := &ServerResponse{
 		Version: Version,
 		Result:  reply,
-		Id:      c.request.Id,
+		Id:      c.Request.Id,
 	}
 	c.writeServerResponse(w, res)
 }
@@ -158,17 +162,17 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 			Message: err.Error(),
 		}
 	}
-	res := &serverResponse{
+	res := &ServerResponse{
 		Version: Version,
 		Error:   jsonErr,
-		Id:      c.request.Id,
+		Id:      c.Request.Id,
 	}
 	c.writeServerResponse(w, res)
 }
 
-func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverResponse) {
+func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *ServerResponse) {
 	// Id is null for notifications and they don't have a response.
-	if c.request.Id != nil {
+	if c.Request.Id != nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		encoder := json.NewEncoder(c.encoder.Encode(w))
 		err := encoder.Encode(res)
