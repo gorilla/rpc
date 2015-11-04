@@ -11,10 +11,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/rpc/v2"
 )
+
+const jsonContentType = "application/json; charset=utf-8"
 
 var ErrResponseError = errors.New("response error")
 
@@ -43,7 +46,7 @@ func (t *Service1) ResponseError(r *http.Request, req *Service1Request, res *Ser
 	return ErrResponseError
 }
 
-func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) (int, error) {
+func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) (*httptest.ResponseRecorder, error) {
 	if !s.HasMethod(method) {
 		t.Fatal("Expected to be registered:", method)
 	}
@@ -57,7 +60,7 @@ func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) (
 	s.ServeHTTP(w, r)
 
 	err := json.NewDecoder(w.Body).Decode(res)
-	return w.Code, err
+	return w, err
 }
 
 func TestService(t *testing.T) {
@@ -75,13 +78,20 @@ func TestService(t *testing.T) {
 	if res.ErrorMessage != "" {
 		t.Error("Expected error_message to be empty, but got:", res.ErrorMessage)
 	}
-	if code, err := execute(t, s, "Service1.ResponseError", &Service1Request{4, 2}, &res); err != nil || code != 400 {
-		t.Errorf("Expected code to be 400 and error to be nil, but got %v (%v)", code, err)
+	if rec, err := execute(t, s, "Service1.ResponseError", &Service1Request{4,
+		2}, &res); err != nil || rec.Code != 400 {
+		t.Errorf("Expected code to be 400 and error to be nil, but got %v (%v)",
+			rec.Code)
 	}
 	if res.ErrorMessage == "" {
 		t.Errorf("Expected error_message to be %q, but got %q", ErrResponseError, res.ErrorMessage)
 	}
-	if code, _ := execute(t, s, "Service1.Multiply", nil, &res); code != 400 {
-		t.Error("Expected http response code 400, but got", code)
+	if rec, _ := execute(t, s, "Service1.Multiply", nil, &res); rec.Code != 400 {
+		t.Error("Expected http response code 400, but got", rec.Code)
 	}
+	if rec, _ := execute(t, s, "Service1.Multiply", nil, &res); !strings.Contains(rec.Header().Get("Content-Type"), jsonContentType) {
+		t.Errorf("Expected Content-Type header %q, but got %q", jsonContentType,
+			rec.Header().Get("Content-Type"))
+	}
+
 }
