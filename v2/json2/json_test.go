@@ -77,6 +77,15 @@ type Service1NoParamsRequest struct {
 	ID uint64 `json:"id"`
 }
 
+type Service1ParamsArrayRequest struct {
+	V string `json:"jsonrpc"`
+	P []struct {
+		T string
+	} `json:"params"`
+	M  string `json:"method"`
+	ID uint64 `json:"id"`
+}
+
 type Service1Response struct {
 	Result int
 }
@@ -149,6 +158,25 @@ func TestService(t *testing.T) {
 	// No parameters.
 	res = Service1Response{}
 	if err := executeRaw(t, s, &Service1NoParamsRequest{"2.0", "Service1.Multiply", 1}, &res); err != nil {
+		t.Error(err)
+	}
+	if res.Result != Service1DefaultResponse {
+		t.Errorf("Wrong response: got %v, want %v", res.Result, Service1DefaultResponse)
+	}
+
+	// Parameters as by-position.
+	res = Service1Response{}
+	req := Service1ParamsArrayRequest{
+		V: "2.0",
+		P: []struct {
+			T string
+		}{{
+			T: "test",
+		}},
+		M:  "Service1.Multiply",
+		ID: 1,
+	}
+	if err := executeRaw(t, s, &req, &res); err != nil {
 		t.Error(err)
 	}
 	if res.Result != Service1DefaultResponse {
