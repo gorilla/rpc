@@ -136,6 +136,16 @@ func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) e
 	return DecodeClientResponse(w.Body, res)
 }
 
+func executeBuffer(t *testing.T, s *rpc.Server, buf []byte, res interface{}) error {
+	r, _ := http.NewRequest("POST", "http://localhost:8080/", bytes.NewBuffer(buf))
+	r.Header.Set("Content-Type", "application/json")
+
+	w := NewRecorder()
+	s.ServeHTTP(w, r)
+
+	return DecodeClientResponse(w.Body, res)
+}
+
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
@@ -181,6 +191,12 @@ func TestService(t *testing.T) {
 	}
 	if res.Result != Service1DefaultResponse {
 		t.Errorf("Wrong response: got %v, want %v", res.Result, Service1DefaultResponse)
+	}
+
+	var ignoreRes interface{}
+	buf := []byte(`{"jsonrpc": "2.0", "id": 12345`)
+	if err := executeBuffer(t, s, buf, &ignoreRes); err == nil {
+		t.Error("Error expected")
 	}
 }
 
