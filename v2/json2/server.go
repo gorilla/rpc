@@ -95,7 +95,7 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
 			Data:    req,
 		}
 	}
-	//Do not override parse error
+	// Do not override parse error
 	if err == nil && req.Version != Version {
 		err = &Error{
 			Code:    E_INVALID_REQ,
@@ -186,7 +186,7 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 }
 
 func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverResponse) {
-	// Id is null for notifications and they don't have a response. OR it just parse error
+	// Id is null for notifications and they don't have a response, or a parsing error has occurred
 	if c.request.Id != nil || c.err != nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		encoder := json.NewEncoder(c.encoder.Encode(w))
