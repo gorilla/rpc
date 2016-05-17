@@ -7,6 +7,7 @@ package rpc
 
 import (
 	"net/http"
+	"strconv"
 	"testing"
 )
 
@@ -78,5 +79,113 @@ func TestRegisterTCPService(t *testing.T) {
 	err = s.RegisterTCPService(service2, "")
 	if err == nil {
 		t.Errorf("Expected error on service2")
+	}
+}
+
+// MockCodec decodes to Service1.Multiply.
+type MockCodec struct {
+	A, B int
+}
+
+func (c MockCodec) NewRequest(*http.Request) CodecRequest {
+	return MockCodecRequest{c.A, c.B}
+}
+
+type MockCodecRequest struct {
+	A, B int
+}
+
+func (r MockCodecRequest) Method() (string, error) {
+	return "Service1.Multiply", nil
+}
+
+func (r MockCodecRequest) ReadRequest(args interface{}) error {
+	req := args.(*Service1Request)
+	req.A, req.B = r.A, r.B
+	return nil
+}
+
+func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
+	if methodErr != nil {
+		w.Write([]byte(methodErr.Error()))
+	} else {
+		res := reply.(*Service1Response)
+		w.Write([]byte(strconv.Itoa(res.Result)))
+	}
+	return nil
+}
+
+type MockResponseWriter struct {
+	header http.Header
+	Status int
+	Body   string
+}
+
+func NewMockResponseWriter() *MockResponseWriter {
+	header := make(http.Header)
+	return &MockResponseWriter{header: header}
+}
+
+func (w *MockResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *MockResponseWriter) Write(p []byte) (int, error) {
+	w.Body = string(p)
+	if w.Status == 0 {
+		w.Status = 200
+	}
+	return len(p), nil
+}
+
+func (w *MockResponseWriter) WriteHeader(status int) {
+	w.Status = status
+}
+
+func TestServeHTTP(t *testing.T) {
+	const (
+		A = 2
+		B = 3
+	)
+	expected := A * B
+
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	s.RegisterCodec(MockCodec{A, B}, "mock")
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != strconv.Itoa(expected) {
+		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+
+	// Test wrong Content-Type
+	r.Header.Set("Content-Type", "invalid")
+	w = NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 415 {
+		t.Errorf("Status was %d, should be 415.", w.Status)
+	}
+	if w.Body != "rpc: unrecognized Content-Type: invalid" {
+		t.Errorf("Wrong response body.")
+	}
+
+	// Test omitted Content-Type; codec should default to the sole registered one.
+	r.Header.Del("Content-Type")
+	w = NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != strconv.Itoa(expected) {
+		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
 	}
 }
