@@ -7,6 +7,7 @@ package rpc
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -74,6 +75,8 @@ func (m *serviceMap) register(rcvr interface{}, name string, passReq bool) error
 		method := s.rcvrType.Method(i)
 		mtype := method.Type
 
+		log.Printf("Attempting to register %s", method.Name)
+
 		// offset the parameter indexes by one if the
 		// service methods accept an HTTP request pointer
 		var paramOffset int
@@ -85,10 +88,12 @@ func (m *serviceMap) register(rcvr interface{}, name string, passReq bool) error
 
 		// Method must be exported.
 		if method.PkgPath != "" {
+			log.Printf("Skipping %s because not exported", method.Name)
 			continue
 		}
 		// Method needs four ins: receiver, *http.Request, *args, *reply.
-		if mtype.NumIn() != 3 + paramOffset {
+		if mtype.NumIn() != 3+paramOffset {
+			log.Printf("Skipping %s because wrong number of inputs", method.Name)
 			continue
 		}
 
@@ -97,26 +102,32 @@ func (m *serviceMap) register(rcvr interface{}, name string, passReq bool) error
 			// First argument must be a pointer and must be http.Request.
 			reqType := mtype.In(1)
 			if reqType.Kind() != reflect.Ptr || reqType.Elem() != typeOfRequest {
+				log.Printf("Skipping %s because first arg not *http.Request", method.Name)
 				continue
 			}
 		}
 		// Next argument must be a pointer and must be exported.
 		args := mtype.In(1 + paramOffset)
 		if args.Kind() != reflect.Ptr || !isExportedOrBuiltin(args) {
+			log.Printf("Skipping %s because second arg not exported pointer", method.Name)
 			continue
 		}
 		// Next argument must be a pointer and must be exported.
 		reply := mtype.In(2 + paramOffset)
 		if reply.Kind() != reflect.Ptr || !isExportedOrBuiltin(reply) {
+			log.Printf("Skipping %s because third arg not exported pointer", method.Name)
 			continue
 		}
 		// Method needs one out: error.
 		if mtype.NumOut() != 1 {
+			log.Printf("Skipping %s because return value not singleton", method.Name)
 			continue
 		}
 		if returnType := mtype.Out(0); returnType != typeOfError {
+			log.Printf("Skipping %s because return value not error", method.Name)
 			continue
 		}
+		log.Printf("Yay! Registering %s", method.Name)
 		s.methods[method.Name] = &serviceMethod{
 			method:    method,
 			argsType:  args.Elem(),
