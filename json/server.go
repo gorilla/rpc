@@ -8,6 +8,7 @@ package json
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/rpc"
@@ -96,6 +97,7 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 			// JSON params is array value. RPC params is struct.
 			// Unmarshal into array containing the request struct.
 			params := [1]interface{}{args}
+			log.Printf("Unmarshalling %s", c.request.Params)
 			c.err = json.Unmarshal(*c.request.Params, &params)
 		} else {
 			c.err = errors.New("rpc: method request ill-formed: missing params field")
