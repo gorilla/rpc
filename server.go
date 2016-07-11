@@ -7,6 +7,7 @@ package rpc
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -166,17 +167,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	if errMethod != nil {
+		log.Printf("Failed request %s because %s", r, errMethod)
 		s.writeError(w, 400, errMethod.Error())
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
+		log.Printf("Failed request %s because %s", r, errGet.Error())
 		s.writeError(w, 400, errGet.Error())
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
+		log.Printf("Failed request %s because %s", r, errRead.Error())
 		s.writeError(w, 400, errRead.Error())
 		return
 	}
@@ -221,6 +225,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("x-content-type-options", "nosniff")
 	// Encode the response.
 	if errWrite := codecReq.WriteResponse(w, reply.Interface(), errResult); errWrite != nil {
+		log.Printf("Failed request %s because %s", r, errWrite.Error())
 		s.writeError(w, 400, errWrite.Error())
 	} else {
 		// Call the registered After Function
