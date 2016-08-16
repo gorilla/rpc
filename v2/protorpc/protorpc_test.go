@@ -81,7 +81,7 @@ func TestService(t *testing.T) {
 	if rec, err := execute(t, s, "Service1.ResponseError", &Service1Request{4,
 		2}, &res); err != nil || rec.Code != 400 {
 		t.Errorf("Expected code to be 400 and error to be nil, but got %v (%v)",
-			rec.Code)
+			rec.Code, err)
 	}
 	if res.ErrorMessage == "" {
 		t.Errorf("Expected error_message to be %q, but got %q", ErrResponseError, res.ErrorMessage)
