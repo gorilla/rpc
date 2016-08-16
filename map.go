@@ -88,7 +88,7 @@ func (m *serviceMap) register(rcvr interface{}, name string, passReq bool) error
 			continue
 		}
 		// Method needs four ins: receiver, *http.Request, *args, *reply.
-		if mtype.NumIn() != 3 + paramOffset {
+		if mtype.NumIn() != 3+paramOffset {
 			continue
 		}
 
