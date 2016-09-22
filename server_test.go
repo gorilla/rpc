@@ -6,6 +6,7 @@
 package rpc
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"testing"
@@ -181,6 +182,42 @@ func TestServeHTTP(t *testing.T) {
 	// Test omitted Content-Type; codec should default to the sole registered one.
 	r.Header.Del("Content-Type")
 	w = NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != strconv.Itoa(expected) {
+		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+}
+
+func TestInterception(t *testing.T) {
+	const (
+		A = 2
+		B = 3
+	)
+	expected := A * B
+
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	s.RegisterCodec(MockCodec{A, B}, "mock")
+	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {
+		ctx := context.WithValue(i.Request.Context(), "test", A)
+		return i.Request.WithContext(ctx)
+	})
+	s.RegisterAfterFunc(func(i *RequestInfo) {
+		value := i.Request.Context().Value("test")
+		if A != value {
+			t.Errorf("Value from context was %d, should be %d.", value, A)
+		}
+	})
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
 	s.ServeHTTP(w, r)
 	if w.Status != 200 {
 		t.Errorf("Status was %d, should be 200.", w.Status)
