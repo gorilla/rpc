@@ -8,6 +8,7 @@ package rpc
 import (
 	"context"
 	"net/http"
+	"runtime"
 	"strconv"
 	"testing"
 )
@@ -192,6 +193,11 @@ func TestServeHTTP(t *testing.T) {
 }
 
 func TestInterception(t *testing.T) {
+	if runtime.Version() < "go1.7" {
+		// this test case uses the context package which is not available in go < 1.7
+		return
+	}
+
 	const (
 		A = 2
 		B = 3
