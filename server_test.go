@@ -6,9 +6,7 @@
 package rpc
 
 import (
-	"context"
 	"net/http"
-	"runtime"
 	"strconv"
 	"testing"
 )
@@ -193,28 +191,26 @@ func TestServeHTTP(t *testing.T) {
 }
 
 func TestInterception(t *testing.T) {
-	if runtime.Version() < "go1.7" {
-		// this test case uses the context package which is not available in go < 1.7
-		return
-	}
-
 	const (
 		A = 2
 		B = 3
 	)
 	expected := A * B
 
+	r2, err := http.NewRequest("POST", "mocked/request", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	s := NewServer()
 	s.RegisterService(new(Service1), "")
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {
-		ctx := context.WithValue(i.Request.Context(), "test", A)
-		return i.Request.WithContext(ctx)
+		return r2
 	})
 	s.RegisterAfterFunc(func(i *RequestInfo) {
-		value := i.Request.Context().Value("test")
-		if A != value {
-			t.Errorf("Value from context was %d, should be %d.", value, A)
+		if i.Request != r2 {
+			t.Errorf("Request was %v, should be %v.", i.Request, r2)
 		}
 	})
 
