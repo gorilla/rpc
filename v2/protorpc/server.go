@@ -131,6 +131,7 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 		}{err.Error()},
 		Id: c.request.Id,
 	}
+	w.WriteHeader(status)
 	c.writeServerResponse(w, status, res)
 }
 
