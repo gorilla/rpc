@@ -124,7 +124,6 @@ func TestServeHTTP(t *testing.T) {
 	s := NewServer()
 	s.RegisterService(new(Service1), "")
 	s.RegisterCodec(MockCodec{A, B}, "mock")
-
 	r, err := http.NewRequest("POST", "", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -153,6 +152,45 @@ func TestServeHTTP(t *testing.T) {
 	// Test omitted Content-Type; codec should default to the sole registered one.
 	r.Header.Del("Content-Type")
 	w = NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != strconv.Itoa(expected) {
+		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+}
+
+func TestInterception(t *testing.T) {
+	const (
+		A = 2
+		B = 3
+	)
+	expected := A * B
+
+	r2, err := http.NewRequest("POST", "mocked/request", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	s.RegisterCodec(MockCodec{A, B}, "mock")
+	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {
+		return r2
+	})
+	s.RegisterAfterFunc(func(i *RequestInfo) {
+		if i.Request != r2 {
+			t.Errorf("Request was %v, should be %v.", i.Request, r2)
+		}
+	})
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
 	s.ServeHTTP(w, r)
 	if w.Status != 200 {
 		t.Errorf("Status was %d, should be 200.", w.Status)

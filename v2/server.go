@@ -46,10 +46,21 @@ func NewServer() *Server {
 	}
 }
 
+// RequestInfo contains all the information we pass to before/after functions
+type RequestInfo struct {
+	Method     string
+	Error      error
+	Request    *http.Request
+	StatusCode int
+}
+
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs   map[string]Codec
-	services *serviceMap
+	codecs        map[string]Codec
+	services      *serviceMap
+	interceptFunc func(i *RequestInfo) *http.Request
+	beforeFunc    func(i *RequestInfo)
+	afterFunc     func(i *RequestInfo)
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -59,6 +70,34 @@ type Server struct {
 // excluding the charset definition.
 func (s *Server) RegisterCodec(codec Codec, contentType string) {
 	s.codecs[strings.ToLower(contentType)] = codec
+}
+
+// RegisterInterceptFunc registers the specified function as the function
+// that will be called before every request. The function is allowed to intercept
+// the request e.g. add values to the context.
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterInterceptFunc(f func(i *RequestInfo) *http.Request) {
+	s.interceptFunc = f
+}
+
+// RegisterBeforeFunc registers the specified function as the function
+// that will be called before every request.
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
+	s.beforeFunc = f
+}
+
+// RegisterAfterFunc registers the specified function as the function
+// that will be called after every request
+//
+// Note: Only one function can be registered, subsequent calls to this
+// method will overwrite all the previous functions.
+func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
+	s.afterFunc = f
 }
 
 // RegisterService adds a new service to the server.
@@ -132,6 +171,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		codecReq.WriteError(w, 400, errRead)
 		return
 	}
+
+	// Call the registered Intercept Function
+	if s.interceptFunc != nil {
+		req := s.interceptFunc(&RequestInfo{
+			Request: r,
+			Method:  method,
+		})
+		if req != nil {
+			r = req
+		}
+	}
+	// Call the registered Before Function
+	if s.beforeFunc != nil {
+		s.beforeFunc(&RequestInfo{
+			Request: r,
+			Method:  method,
+		})
+	}
+
 	// Call the service method.
 	reply := reflect.New(methodSpec.replyType)
 	errValue := methodSpec.method.Func.Call([]reflect.Value{
@@ -154,6 +212,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		codecReq.WriteResponse(w, reply.Interface())
 	} else {
 		codecReq.WriteError(w, 400, errResult)
+	}
+
+	// Call the registered After Function
+	if s.afterFunc != nil {
+		s.afterFunc(&RequestInfo{
+			Request:    r,
+			Method:     method,
+			Error:      errResult,
+			StatusCode: 200,
+		})
 	}
 }
 
