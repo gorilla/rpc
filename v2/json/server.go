@@ -145,8 +145,8 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, _ int, err error) {
 func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, status int, res *serverResponse) {
 	b, err := json.Marshal(res)
 	if err == nil {
-		w.WriteHeader(status)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(status)
 		w.Write(b)
 	} else {
 		// Not sure in which case will this happen. But seems harmless.

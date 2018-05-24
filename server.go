@@ -257,8 +257,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeError(w http.ResponseWriter, status int, msg string) {
-	w.WriteHeader(status)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(status)
 	fmt.Fprint(w, msg)
 	if s.afterFunc != nil {
 		s.afterFunc(&RequestInfo{

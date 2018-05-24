@@ -127,6 +127,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		Error:  &null,
 		Id:     c.request.Id,
 	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if methodErr != nil {
 		// Propagate error message as string.
 		res.Error = methodErr.Error()
@@ -136,7 +137,6 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		}{res.Error}
 		w.WriteHeader(500)
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	encoder := json.NewEncoder(w)
 	encoder.Encode(res.Result)
 	return nil
