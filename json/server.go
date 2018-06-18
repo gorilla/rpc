@@ -130,7 +130,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 	} else {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		encoder := json.NewEncoder(w)
-		encoder.Encode(res)
+		c.err = encoder.Encode(res)
 	}
-	return nil
+	return c.err
 }
