@@ -59,7 +59,7 @@ type serverResponse struct {
 // Codec
 // ----------------------------------------------------------------------------
 
-// NewcustomCodec returns a new JSON Codec based on passed encoder selector.
+// NewCustomCodec returns a new JSON Codec based on passed encoder selector.
 func NewCustomCodec(encSel rpc.EncoderSelector) *Codec {
 	return &Codec{encSel: encSel}
 }
