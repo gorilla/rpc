@@ -184,9 +184,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 }
 
 func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
-	if c.errorMapper != nil {
-		err = c.errorMapper(err)
-	}
+	err = c.tryToMapIfNotAnErrorAlready(err)
 	jsonErr, ok := err.(*Error)
 	if !ok {
 		jsonErr = &Error{
@@ -200,6 +198,13 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 		Id:      c.request.Id,
 	}
 	c.writeServerResponse(w, res)
+}
+
+func (c CodecRequest) tryToMapIfNotAnErrorAlready(err error) error {
+	if _, ok := err.(*Error); ok || c.errorMapper == nil {
+		return err
+	}
+	return c.errorMapper(err)
 }
 
 func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverResponse) {

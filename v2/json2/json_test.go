@@ -200,7 +200,11 @@ func TestServiceWithErrorMapper(t *testing.T) {
 				Message: err.Error(),
 			}
 		}
-		return err
+		// Map everything else to E_SERVER
+		return &Error{
+			Code:    E_SERVER,
+			Message: err.Error(),
+		}
 	}
 
 	s := rpc.NewServer()
@@ -227,6 +231,22 @@ func TestServiceWithErrorMapper(t *testing.T) {
 		t.Errorf("Expected to get Code %d, but got %d", E_SERVER, jsonRpcErr.Code)
 	} else if jsonRpcErr.Message != ErrResponseError.Error() {
 		t.Errorf("Expected to get Message %q, but got %q", ErrResponseError.Error(), jsonRpcErr.Message)
+	}
+
+	// Malformed request without method: our framework tries to return an error: we shouldn't map that one
+	malformedRequest := struct {
+		V  string `json:"jsonrpc"`
+		ID string `json:"id"`
+	}{
+		V:  "3.0",
+		ID: "any",
+	}
+	if err := executeRaw(t, s, &malformedRequest, &res); err == nil {
+		t.Errorf("Expected to get a JSON-RPC error, but got nil")
+	} else if jsonRpcErr, ok := err.(*Error); !ok {
+		t.Errorf("Expected to get an *Error, but got %T: %s", err, err)
+	} else if jsonRpcErr.Code != E_INVALID_REQ {
+		t.Errorf("Expected to get an E_INVALID_REQ error (%d), but got %d", E_INVALID_REQ, jsonRpcErr.Code)
 	}
 }
 
