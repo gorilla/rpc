@@ -64,6 +64,12 @@ func NewCustomCodec(encSel rpc.EncoderSelector) *Codec {
 	return &Codec{encSel: encSel}
 }
 
+// NewCustomCodecWithErrorMapper returns a new JSON Codec based on the passed encoder selector
+// and also accepts an errorMapper function.
+// The errorMapper function will be called if the Service implementation returns an error, with that
+// error as a param, replacing it by the value returned by this function. This function is intended
+// to decouple your service implementation from the codec itself, making possible to return abstract
+// errors in your service, and then mapping them here to the JSON-RPC error codes.
 func NewCustomCodecWithErrorMapper(encSel rpc.EncoderSelector, errorMapper func(error) error) *Codec {
 	return &Codec{
 		encSel:      encSel,
