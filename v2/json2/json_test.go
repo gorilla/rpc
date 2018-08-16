@@ -10,10 +10,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/rpc/v2"
-	"strings"
 )
 
 // ResponseRecorder is an implementation of http.ResponseWriter that
