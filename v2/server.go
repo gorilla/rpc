@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+var nilErrorValue = reflect.Zero(reflect.TypeOf((*error)(nil)).Elem())
+
 // ----------------------------------------------------------------------------
 // Codec
 // ----------------------------------------------------------------------------
@@ -61,7 +63,7 @@ type Server struct {
 	interceptFunc func(i *RequestInfo) *http.Request
 	beforeFunc    func(i *RequestInfo)
 	afterFunc     func(i *RequestInfo)
-	validateFunc  func(i interface{}) error
+	validateFunc  reflect.Value
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -98,7 +100,7 @@ func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
 // won't be invoked and this error will be considered as the method result.
 // The argument of this function is the already-unmarshalled *args parameter of the method.
 func (s *Server) RegisterValidateRequestFunc(f func(i interface{}) error) {
-	s.validateFunc = f
+	s.validateFunc = reflect.ValueOf(f)
 }
 
 // RegisterAfterFunc registers the specified function as the function
@@ -202,17 +204,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare the reply, we need it even if validation fails
 	reply := reflect.New(methodSpec.replyType)
-	var errValue []reflect.Value
+	errValue := []reflect.Value{nilErrorValue}
 
 	// Call the registered Validator Function
-	if s.validateFunc != nil {
-		if validationErr := s.validateFunc(args.Interface()); validationErr != nil {
-			errValue = []reflect.Value{reflect.ValueOf(validationErr)}
-		}
+	if s.validateFunc.IsValid() {
+		errValue = s.validateFunc.Call([]reflect.Value{args})
 	}
 
 	// If still no errors after validation, call the method
-	if len(errValue) == 0 {
+	if errValue[0].IsNil() {
 		errValue = methodSpec.method.Func.Call([]reflect.Value{
 			serviceSpec.rcvr,
 			reflect.ValueOf(r),
@@ -221,12 +221,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Cast the result to error if needed.
+	// Extract the result to error if needed.
 	var errResult error
-	errInter := errValue[0].Interface()
-	if errInter != nil {
-		errResult = errInter.(error)
+	if !errValue[0].IsNil() {
+		errResult = errValue[0].Interface().(error)
 	}
+
 	// Prevents Internet Explorer from MIME-sniffing a response away
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
