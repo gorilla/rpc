@@ -227,18 +227,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Extract the result to error if needed.
 	var errResult error
-	if !errValue[0].IsNil() {
-		errResult = errValue[0].Interface().(error)
+	statusCode := 200
+	errInter := errValue[0].Interface()
+	if errInter != nil {
+		statusCode = 400
+		errResult = errInter.(error)
 	}
 
 	// Prevents Internet Explorer from MIME-sniffing a response away
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
+
 	// Encode the response.
 	if errResult == nil {
 		codecReq.WriteResponse(w, reply.Interface())
 	} else {
-		codecReq.WriteError(w, 400, errResult)
+		codecReq.WriteError(w, statusCode, errResult)
 	}
 
 	// Call the registered After Function
@@ -247,7 +251,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Request:    r,
 			Method:     method,
 			Error:      errResult,
-			StatusCode: 200,
+			StatusCode: statusCode,
 		})
 	}
 }
