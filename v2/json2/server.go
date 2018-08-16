@@ -88,20 +88,21 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
+
 	if err != nil {
 		err = &Error{
 			Code:    E_PARSE,
 			Message: err.Error(),
 			Data:    req,
 		}
-	}
-	if req.Version != Version {
+	} else if req.Version != Version {
 		err = &Error{
 			Code:    E_INVALID_REQ,
 			Message: "jsonrpc must be " + Version,
 			Data:    req,
 		}
 	}
+
 	r.Body.Close()
 	return &CodecRequest{request: req, err: err, encoder: encoder}
 }
@@ -185,8 +186,9 @@ func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) 
 }
 
 func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverResponse) {
-	// Id is null for notifications and they don't have a response.
-	if c.request.Id != nil {
+	// Id is null for notifications and they don't have a response, unless we couldn't even parse the JSON, in that
+	// case we can't know whether it was intended to be a notification
+	if c.request.Id != nil || isParseErrorResponse(res) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		encoder := json.NewEncoder(c.encoder.Encode(w))
 		err := encoder.Encode(res)
@@ -196,6 +198,10 @@ func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverRes
 			rpc.WriteError(w, 400, err.Error())
 		}
 	}
+}
+
+func isParseErrorResponse(res *serverResponse) bool {
+	return res != nil && res.Error != nil && res.Error.Code == E_PARSE
 }
 
 type EmptyResponse struct {
