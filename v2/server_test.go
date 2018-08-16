@@ -6,6 +6,7 @@
 package rpc
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"testing"
@@ -179,6 +180,7 @@ func TestInterception(t *testing.T) {
 	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {
 		return r2
 	})
+	s.RegisterValidateRequestFunc(func(i interface{}) error { return nil })
 	s.RegisterAfterFunc(func(i *RequestInfo) {
 		if i.Request != r2 {
 			t.Errorf("Request was %v, should be %v.", i.Request, r2)
@@ -197,5 +199,65 @@ func TestInterception(t *testing.T) {
 	}
 	if w.Body != strconv.Itoa(expected) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+}
+func TestValidationSuccessful(t *testing.T) {
+	const (
+		A = 2
+		B = 3
+
+		expected = A * B
+	)
+
+	validate := func(i interface{}) error { return nil }
+
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	s.RegisterCodec(MockCodec{A, B}, "mock")
+	s.RegisterValidateRequestFunc(validate)
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != strconv.Itoa(expected) {
+		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
+	}
+}
+
+func TestValidationFails(t *testing.T) {
+	const expected = "this instance only supports zero values"
+
+	validate := func(i interface{}) error {
+		req := i.(*Service1Request)
+		if req.A != 0 || req.B != 0 {
+			return errors.New(expected)
+		}
+		return nil
+	}
+
+	s := NewServer()
+	s.RegisterService(new(Service1), "")
+	s.RegisterCodec(MockCodec{1, 2}, "mock")
+	s.RegisterValidateRequestFunc(validate)
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock; dummy")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 400 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != expected {
+		t.Errorf("Response body was %s, should be %s.", w.Body, expected)
 	}
 }
