@@ -64,6 +64,13 @@ func NewCustomCodec(encSel rpc.EncoderSelector) *Codec {
 	return &Codec{encSel: encSel}
 }
 
+func NewCustomCodecWithErrorMapper(encSel rpc.EncoderSelector, errorMapper func(error) error) *Codec {
+	return &Codec{
+		encSel:      encSel,
+		errorMapper: errorMapper,
+	}
+}
+
 // NewCodec returns a new JSON Codec.
 func NewCodec() *Codec {
 	return NewCustomCodec(rpc.DefaultEncoderSelector)
@@ -71,12 +78,13 @@ func NewCodec() *Codec {
 
 // Codec creates a CodecRequest to process each request.
 type Codec struct {
-	encSel rpc.EncoderSelector
+	encSel      rpc.EncoderSelector
+	errorMapper func(error) error
 }
 
 // NewRequest returns a CodecRequest.
 func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
-	return newCodecRequest(r, c.encSel.Select(r))
+	return newCodecRequest(r, c.encSel.Select(r), c.errorMapper)
 }
 
 // ----------------------------------------------------------------------------
@@ -84,7 +92,7 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 // ----------------------------------------------------------------------------
 
 // newCodecRequest returns a new CodecRequest.
-func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
+func newCodecRequest(r *http.Request, encoder rpc.Encoder, errorMapper func(error) error) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
@@ -103,14 +111,15 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder) rpc.CodecRequest {
 		}
 	}
 	r.Body.Close()
-	return &CodecRequest{request: req, err: err, encoder: encoder}
+	return &CodecRequest{request: req, err: err, encoder: encoder, errorMapper: errorMapper}
 }
 
 // CodecRequest decodes and encodes a single request.
 type CodecRequest struct {
-	request *serverRequest
-	err     error
-	encoder rpc.Encoder
+	request     *serverRequest
+	err         error
+	encoder     rpc.Encoder
+	errorMapper func(error) error
 }
 
 // Method returns the RPC method for the current request.
@@ -169,6 +178,9 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 }
 
 func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+	if c.errorMapper != nil {
+		err = c.errorMapper(err)
+	}
 	jsonErr, ok := err.(*Error)
 	if !ok {
 		jsonErr = &Error{

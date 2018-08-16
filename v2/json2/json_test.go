@@ -65,6 +65,7 @@ func (rw *ResponseRecorder) Flush() {
 // ----------------------------------------------------------------------------
 
 var ErrResponseError = errors.New("response error")
+var ErrMappedResponseError = errors.New("mapped response error")
 
 type Service1Request struct {
 	A int
@@ -107,6 +108,10 @@ func (t *Service1) Multiply(r *http.Request, req *Service1Request, res *Service1
 
 func (t *Service1) ResponseError(r *http.Request, req *Service1Request, res *Service1Response) error {
 	return ErrResponseError
+}
+
+func (t *Service1) MappedResponseError(r *http.Request, req *Service1Request, res *Service1Response) error {
+	return ErrMappedResponseError
 }
 
 func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) error {
@@ -181,6 +186,47 @@ func TestService(t *testing.T) {
 	}
 	if res.Result != Service1DefaultResponse {
 		t.Errorf("Wrong response: got %v, want %v", res.Result, Service1DefaultResponse)
+	}
+}
+
+func TestServiceWithErrorMapper(t *testing.T) {
+	const mappedErrorCode = 100
+
+	// errorMapper maps ErrMappedResponseError to an Error with mappedErrorCode Code, everything else is returned as-is
+	errorMapper := func(err error) error {
+		if err == ErrMappedResponseError {
+			return &Error{
+				Code:    mappedErrorCode,
+				Message: err.Error(),
+			}
+		}
+		return err
+	}
+
+	s := rpc.NewServer()
+	s.RegisterCodec(NewCustomCodecWithErrorMapper(rpc.DefaultEncoderSelector, errorMapper), "application/json")
+	s.RegisterService(new(Service1), "")
+
+	var res Service1Response
+	if err := execute(t, s, "Service1.MappedResponseError", &Service1Request{4, 2}, &res); err == nil {
+		t.Errorf("Expected to get a JSON-RPC error, but got nil")
+	} else if jsonRpcErr, ok := err.(*Error); !ok {
+		t.Errorf("Expected to get an *Error, but got %T: %s", err, err)
+	} else if jsonRpcErr.Code != mappedErrorCode {
+		t.Errorf("Expected to get Code %d, but got %d", mappedErrorCode, jsonRpcErr.Code)
+	} else if jsonRpcErr.Message != ErrMappedResponseError.Error() {
+		t.Errorf("Expected to get Message %q, but got %q", ErrMappedResponseError.Error(), jsonRpcErr.Message)
+	}
+
+	// Unmapped error behaves as usual
+	if err := execute(t, s, "Service1.ResponseError", &Service1Request{4, 2}, &res); err == nil {
+		t.Errorf("Expected to get a JSON-RPC error, but got nil")
+	} else if jsonRpcErr, ok := err.(*Error); !ok {
+		t.Errorf("Expected to get an *Error, but got %T: %s", err, err)
+	} else if jsonRpcErr.Code != E_SERVER {
+		t.Errorf("Expected to get Code %d, but got %d", E_SERVER, jsonRpcErr.Code)
+	} else if jsonRpcErr.Message != ErrResponseError.Error() {
+		t.Errorf("Expected to get Message %q, but got %q", ErrResponseError.Error(), jsonRpcErr.Message)
 	}
 }
 
