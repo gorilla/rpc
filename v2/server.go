@@ -146,7 +146,7 @@ func (s *Server) HasMethod(method string) bool {
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		WriteError(w, 405, "rpc: POST method required, received "+r.Method)
+		WriteError(w, http.StatusMethodNotAllowed, "rpc: POST method required, received "+r.Method)
 		return
 	}
 	contentType := r.Header.Get("Content-Type")
@@ -162,7 +162,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			codec = c
 		}
 	} else if codec = s.codecs[strings.ToLower(contentType)]; codec == nil {
-		WriteError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
+		WriteError(w, http.StatusUnsupportedMediaType, "rpc: unrecognized Content-Type: "+contentType)
 		return
 	}
 	// Create a new codec request.
@@ -170,18 +170,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	if errMethod != nil {
-		codecReq.WriteError(w, 400, errMethod)
+		codecReq.WriteError(w, http.StatusBadRequest, errMethod)
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
-		codecReq.WriteError(w, 400, errGet)
+		codecReq.WriteError(w, http.StatusBadRequest, errGet)
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		codecReq.WriteError(w, 400, errRead)
+		codecReq.WriteError(w, http.StatusBadRequest, errRead)
 		return
 	}
 
@@ -227,10 +227,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Extract the result to error if needed.
 	var errResult error
-	statusCode := 200
+	statusCode := http.StatusOK
 	errInter := errValue[0].Interface()
 	if errInter != nil {
-		statusCode = 400
+		statusCode = http.StatusBadRequest
 		errResult = errInter.(error)
 	}
 
