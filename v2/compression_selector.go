@@ -60,31 +60,21 @@ func (enc *flateEncoder) Encode(w http.ResponseWriter) io.Writer {
 type CompressionSelector struct {
 }
 
-// acceptedEnc returns the first compression type in "Accept-Encoding" header
-// field of the request.
-func acceptedEnc(req *http.Request) string {
-	encHeader := req.Header.Get("Accept-Encoding")
-	if encHeader == "" {
-		return ""
-	}
+// Select method selects the correct compression encoder based on http HEADER.
+func (*CompressionSelector) Select(r *http.Request) Encoder {
+	encHeader := r.Header.Get("Accept-Encoding")
 	encTypes := strings.FieldsFunc(encHeader, func(r rune) bool {
 		return unicode.IsSpace(r) || r == ','
 	})
+
 	for _, enc := range encTypes {
-		if enc == "gzip" || enc == "deflate" {
-			return enc
+		switch enc {
+		case "gzip":
+			return &gzipEncoder{}
+		case "deflate":
+			return &flateEncoder{}
 		}
 	}
-	return ""
-}
 
-// Select method selects the correct compression encoder based on http HEADER.
-func (_ *CompressionSelector) Select(r *http.Request) Encoder {
-	switch acceptedEnc(r) {
-	case "gzip":
-		return &gzipEncoder{}
-	case "flate":
-		return &flateEncoder{}
-	}
 	return DefaultEncoder
 }
