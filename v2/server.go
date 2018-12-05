@@ -98,8 +98,9 @@ func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
 // that will be called after the BeforeFunc (if registered) and before invoking
 // the actual Service method. If this function returns a non-nil error, the method
 // won't be invoked and this error will be considered as the method result.
-// The argument of this function is the already-unmarshalled *args parameter of the method.
-func (s *Server) RegisterValidateRequestFunc(f func(i interface{}) error) {
+// The first argument is information about the request, useful for accessing to http.Request.Context()
+// The second argument of this function is the already-unmarshalled *args parameter of the method.
+func (s *Server) RegisterValidateRequestFunc(f func(r *RequestInfo, i interface{}) error) {
 	s.validateFunc = reflect.ValueOf(f)
 }
 
@@ -194,12 +195,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			r = req
 		}
 	}
+
+	requestInfo := &RequestInfo{
+		Request: r,
+		Method:  method,
+	}
+
 	// Call the registered Before Function
 	if s.beforeFunc != nil {
-		s.beforeFunc(&RequestInfo{
-			Request: r,
-			Method:  method,
-		})
+		s.beforeFunc(requestInfo)
 	}
 
 	// Prepare the reply, we need it even if validation fails
@@ -208,7 +212,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Call the registered Validator Function
 	if s.validateFunc.IsValid() {
-		errValue = s.validateFunc.Call([]reflect.Value{args})
+		errValue = s.validateFunc.Call([]reflect.Value{reflect.ValueOf(requestInfo), args})
 	}
 
 	// If still no errors after validation, call the method

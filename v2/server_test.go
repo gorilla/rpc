@@ -180,7 +180,7 @@ func TestInterception(t *testing.T) {
 	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {
 		return r2
 	})
-	s.RegisterValidateRequestFunc(func(i interface{}) error { return nil })
+	s.RegisterValidateRequestFunc(func(info *RequestInfo, v interface{}) error { return nil })
 	s.RegisterAfterFunc(func(i *RequestInfo) {
 		if i.Request != r2 {
 			t.Errorf("Request was %v, should be %v.", i.Request, r2)
@@ -209,7 +209,7 @@ func TestValidationSuccessful(t *testing.T) {
 		expected = A * B
 	)
 
-	validate := func(i interface{}) error { return nil }
+	validate := func(info *RequestInfo, v interface{}) error { return nil }
 
 	s := NewServer()
 	s.RegisterService(new(Service1), "")
@@ -234,8 +234,8 @@ func TestValidationSuccessful(t *testing.T) {
 func TestValidationFails(t *testing.T) {
 	const expected = "this instance only supports zero values"
 
-	validate := func(i interface{}) error {
-		req := i.(*Service1Request)
+	validate := func(r *RequestInfo, v interface{}) error {
+		req := v.(*Service1Request)
 		if req.A != 0 || req.B != 0 {
 			return errors.New(expected)
 		}
