@@ -218,7 +218,7 @@ func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, res *serverRes
 
 		// Not sure in which case will this happen. But seems harmless.
 		if err != nil {
-			rpc.WriteError(w, 400, err.Error())
+			rpc.WriteError(w, http.StatusInternalServerError, err.Error())
 		}
 	}
 }
