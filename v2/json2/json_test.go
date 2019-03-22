@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/rpc/v2"
@@ -136,6 +137,16 @@ func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) e
 	return DecodeClientResponse(w.Body, res)
 }
 
+func executeInvalidJSON(t *testing.T, s *rpc.Server, res interface{}) error {
+	r, _ := http.NewRequest("POST", "http://localhost:8080/", strings.NewReader(`not even a json`))
+	r.Header.Set("Content-Type", "application/json")
+
+	w := NewRecorder()
+	s.ServeHTTP(w, r)
+
+	return DecodeClientResponse(w.Body, res)
+}
+
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
@@ -181,6 +192,15 @@ func TestService(t *testing.T) {
 	}
 	if res.Result != Service1DefaultResponse {
 		t.Errorf("Wrong response: got %v, want %v", res.Result, Service1DefaultResponse)
+	}
+
+	res = Service1Response{}
+	if err := executeInvalidJSON(t, s, &res); err == nil {
+		t.Error("Expected to receive an E_PARSE error, but got nil")
+	} else if jsonRpcErr, ok := err.(*Error); !ok {
+		t.Errorf("Expected to receive an Error, but got %T: %s", err, err)
+	} else if jsonRpcErr.Code != E_PARSE {
+		t.Errorf("Expected to receive an E_PARSE JSON-RPC error (%d) but got %d", E_PARSE, jsonRpcErr.Code)
 	}
 }
 
