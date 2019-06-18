@@ -58,12 +58,12 @@ type RequestInfo struct {
 
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs        map[string]Codec
-	services      *serviceMap
-	interceptFunc func(i *RequestInfo) *http.Request
-	beforeFunc    func(i *RequestInfo)
-	afterFunc     func(i *RequestInfo)
-	validateFunc  reflect.Value
+	codecs         map[string]Codec
+	services       *serviceMap
+	interceptFuncs []func(i *RequestInfo) *http.Request
+	beforeFuncs    []func(i *RequestInfo)
+	afterFuncs     []func(i *RequestInfo)
+	validateFunc   reflect.Value
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -75,23 +75,17 @@ func (s *Server) RegisterCodec(codec Codec, contentType string) {
 	s.codecs[strings.ToLower(contentType)] = codec
 }
 
-// RegisterInterceptFunc registers the specified function as the function
+// RegisterInterceptFunc registers the specified function as a function
 // that will be called before every request. The function is allowed to intercept
 // the request e.g. add values to the context.
-//
-// Note: Only one function can be registered, subsequent calls to this
-// method will overwrite all the previous functions.
 func (s *Server) RegisterInterceptFunc(f func(i *RequestInfo) *http.Request) {
-	s.interceptFunc = f
+	s.interceptFuncs = append(s.interceptFuncs, f)
 }
 
-// RegisterBeforeFunc registers the specified function as the function
+// RegisterBeforeFunc registers the specified function as a function
 // that will be called before every request.
-//
-// Note: Only one function can be registered, subsequent calls to this
-// method will overwrite all the previous functions.
 func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
-	s.beforeFunc = f
+	s.beforeFuncs = append(s.beforeFuncs, f)
 }
 
 // RegisterValidateRequestFunc registers the specified function as the function
@@ -104,13 +98,10 @@ func (s *Server) RegisterValidateRequestFunc(f func(r *RequestInfo, i interface{
 	s.validateFunc = reflect.ValueOf(f)
 }
 
-// RegisterAfterFunc registers the specified function as the function
+// RegisterAfterFunc registers the specified function as a function
 // that will be called after every request
-//
-// Note: Only one function can be registered, subsequent calls to this
-// method will overwrite all the previous functions.
 func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
-	s.afterFunc = f
+	s.afterFuncs = append(s.afterFuncs, f)
 }
 
 // RegisterService adds a new service to the server.
@@ -185,14 +176,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Call the registered Intercept Function
-	if s.interceptFunc != nil {
-		req := s.interceptFunc(&RequestInfo{
-			Request: r,
-			Method:  method,
-		})
-		if req != nil {
-			r = req
+	// Call the registered Intercept Functions
+	if len(s.interceptFuncs) > 0 {
+		for _, f := range s.interceptFuncs {
+			req := f(&RequestInfo{
+				Request: r,
+				Method:  method,
+			})
+			if req != nil {
+				r = req
+			}
 		}
 	}
 
@@ -201,9 +194,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Method:  method,
 	}
 
-	// Call the registered Before Function
-	if s.beforeFunc != nil {
-		s.beforeFunc(requestInfo)
+	// Call the registered Before Functions
+	if len(s.beforeFuncs) > 0 {
+		for _, f := range s.beforeFuncs {
+			f(requestInfo)
+		}
 	}
 
 	// Prepare the reply, we need it even if validation fails
@@ -246,13 +241,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call the registered After Function
-	if s.afterFunc != nil {
-		s.afterFunc(&RequestInfo{
-			Request:    r,
-			Method:     method,
-			Error:      errResult,
-			StatusCode: statusCode,
-		})
+	if len(s.afterFuncs) > 0 {
+		for _, f := range s.afterFuncs {
+			f(&RequestInfo{
+				Request:    r,
+				Method:     method,
+				Error:      errResult,
+				StatusCode: statusCode,
+			})
+		}
 	}
 }
 
