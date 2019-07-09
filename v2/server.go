@@ -64,6 +64,7 @@ type Server struct {
 	beforeFunc    func(i *RequestInfo)
 	afterFunc     func(i *RequestInfo)
 	validateFunc  reflect.Value
+	allowCORS     bool
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -141,6 +142,11 @@ func (s *Server) HasMethod(method string) bool {
 		return true
 	}
 	return false
+}
+
+// AllowCORS sets allowCORS property
+func (s *Server) AllowCORS() {
+	s.allowCORS = true
 }
 
 // ServeHTTP
@@ -237,6 +243,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Prevents Internet Explorer from MIME-sniffing a response away
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
+	if s.allowCORS {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	}
 
 	// Encode the response.
 	if errResult == nil {
