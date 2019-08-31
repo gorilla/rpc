@@ -19,7 +19,7 @@ compared to net/rpc:
 Let's setup a server and register a codec and service:
 
 	import (
-		"http"
+		"net/http"
 		"github.com/gorilla/rpc"
 		"github.com/gorilla/rpc/json"
 	)
