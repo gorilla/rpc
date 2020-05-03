@@ -178,12 +178,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		codecReq.WriteError(w, http.StatusBadRequest, errGet)
 		return
 	}
-	// Decode the args.
-	args := reflect.New(methodSpec.argsType)
-	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		codecReq.WriteError(w, http.StatusBadRequest, errRead)
-		return
-	}
 
 	// Call the registered Intercept Function
 	if s.interceptFunc != nil {
@@ -204,6 +198,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Call the registered Before Function
 	if s.beforeFunc != nil {
 		s.beforeFunc(requestInfo)
+	}
+
+	// Close request body after Intercept and Before Function if it exists
+	// if it's already closed, error still would be nil
+	if r.Body != nil {
+		r.Body.Close()
+	}
+
+	// Update codec request with request values after Intercept and Before functions
+	codecReq = codec.NewRequest(r)
+
+	// Decode the args.
+	args := reflect.New(methodSpec.argsType)
+	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
+		codecReq.WriteError(w, http.StatusBadRequest, errRead)
+		return
 	}
 
 	// Prepare the reply, we need it even if validation fails
