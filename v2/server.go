@@ -206,8 +206,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Body.Close()
 	}
 
-	// Update codec request with request values after Intercept and Before functions
-	codecReq = codec.NewRequest(r)
+	// Update codec request with request values after Intercept and Before functions if they exist
+	if s.interceptFunc != nil || s.beforeFunc != nil {
+		codecReq = codec.NewRequest(r)
+	}
 
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
