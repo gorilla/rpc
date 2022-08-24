@@ -9,7 +9,7 @@
  * JSON-RPC is a stateless, light-weight remote procedure call (RPC) protocol.
  * Read more in the <http://groups.google.com/group/json-rpc/web/json-rpc-2-0>
  *
- * Requires json2.js<http://www.json.org/json2.js> if browser has not window.JSON.
+ * Requires json.js<http://www.json.org/json2.js> if browser has not window.JSON.
  *
  * Usage:
  *   $.jsonrpc(data [, callbacks [, debug]]);
@@ -81,7 +81,6 @@
     debug = debug || false;
 
     var postdata = {
-      jsonrpc: '2.0',
       method: data.method || '',
       params: data.params || {}
     };

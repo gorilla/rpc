@@ -6,32 +6,12 @@
 package rpc
 
 import (
-	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
 )
 
-// ----------------------------------------------------------------------------
-// Codec
-// ----------------------------------------------------------------------------
-
-// Codec creates a CodecRequest to process each request.
-type Codec interface {
-	NewRequest(*http.Request) CodecRequest
-}
-
-// CodecRequest decodes a request and encodes a response using a specific
-// serialization scheme.
-type CodecRequest interface {
-	// Reads request and returns the RPC method name.
-	Method() (string, error)
-	// Reads request filling the RPC method args.
-	ReadRequest(interface{}) error
-	// Writes response using the RPC method reply. The error parameter is
-	// the error returned by the method call, if any.
-	WriteResponse(http.ResponseWriter, interface{}, error) error
-}
+var nilErrorValue = reflect.Zero(reflect.TypeOf((*error)(nil)).Elem())
 
 // ----------------------------------------------------------------------------
 // Server
@@ -40,8 +20,11 @@ type CodecRequest interface {
 // NewServer returns a new RPC server.
 func NewServer() *Server {
 	return &Server{
-		codecs:   make(map[string]Codec),
-		services: new(serviceMap),
+		codecs: make(map[string]Codec),
+		services: &serviceMap{
+			methods: make(map[string]*serviceMethod),
+			aliases: make(map[string]string),
+		},
 	}
 }
 
@@ -60,6 +43,7 @@ type Server struct {
 	interceptFunc func(i *RequestInfo) *http.Request
 	beforeFunc    func(i *RequestInfo)
 	afterFunc     func(i *RequestInfo)
+	validateFunc  reflect.Value
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -69,57 +53,6 @@ type Server struct {
 // excluding the charset definition.
 func (s *Server) RegisterCodec(codec Codec, contentType string) {
 	s.codecs[strings.ToLower(contentType)] = codec
-}
-
-// RegisterService adds a new service to the server.
-//
-// The name parameter is optional: if empty it will be inferred from
-// the receiver type name.
-//
-// Methods from the receiver will be extracted if these rules are satisfied:
-//
-//    - The receiver is exported (begins with an upper case letter) or local
-//      (defined in the package registering the service).
-//    - The method name is exported.
-//    - The method has three arguments: *http.Request, *args, *reply.
-//    - All three arguments are pointers.
-//    - The second and third arguments are exported or local.
-//    - The method has return type error.
-//
-// All other methods are ignored.
-func (s *Server) RegisterService(receiver interface{}, name string) error {
-	return s.services.register(receiver, name, true)
-}
-
-// RegisterTCPService adds a new TCP service to the server.
-// No HTTP request struct will be passed to the service methods.
-//
-// The name parameter is optional: if empty it will be inferred from
-// the receiver type name.
-//
-// Methods from the receiver will be extracted if these rules are satisfied:
-//
-//    - The receiver is exported (begins with an upper case letter) or local
-//      (defined in the package registering the service).
-//    - The method name is exported.
-//    - The method has two arguments: *args, *reply.
-//    - Both arguments are pointers.
-//    - Both arguments are exported or local.
-//    - The method has return type error.
-//
-// All other methods are ignored.
-func (s *Server) RegisterTCPService(receiver interface{}, name string) error {
-	return s.services.register(receiver, name, false)
-}
-
-// HasMethod returns true if the given method is registered.
-//
-// The method uses a dotted notation as in "Service.Method".
-func (s *Server) HasMethod(method string) bool {
-	if _, _, err := s.services.get(method); err == nil {
-		return true
-	}
-	return false
 }
 
 // RegisterInterceptFunc registers the specified function as the function
@@ -141,6 +74,16 @@ func (s *Server) RegisterBeforeFunc(f func(i *RequestInfo)) {
 	s.beforeFunc = f
 }
 
+// RegisterValidateRequestFunc registers the specified function as the function
+// that will be called after the BeforeFunc (if registered) and before invoking
+// the actual Service method. If this function returns a non-nil error, the method
+// won't be invoked and this error will be considered as the method result.
+// The first argument is information about the request, useful for accessing to http.Request.Context()
+// The second argument of this function is the already-unmarshalled *args parameter of the method.
+func (s *Server) RegisterValidateRequestFunc(f func(r *RequestInfo, i interface{}) error) {
+	s.validateFunc = reflect.ValueOf(f)
+}
+
 // RegisterAfterFunc registers the specified function as the function
 // that will be called after every request
 //
@@ -150,10 +93,63 @@ func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
 	s.afterFunc = f
 }
 
+// RegisterService adds a new service to the server.
+//
+// The name parameter is optional: if empty it will be inferred from
+// the receiver type name.
+//
+// Methods from the receiver will be extracted if these rules are satisfied:
+//
+//    - The receiver is exported (begins with an upper case letter) or local
+//      (defined in the package registering the service).
+//    - The method name is exported.
+//    - The method has three arguments: *http.Request, *args, *reply.
+//    - All three arguments are pointers.
+//    - The second and third arguments are exported or local.
+//    - The method has return type error.
+//
+// All other methods are ignored.
+func (s *Server) RegisterService(receiver interface{}, name string) error {
+	return s.services.register(receiver, name)
+}
+
+// RegisterMethod adds a new service method to the server.
+//
+// The name parameter is required
+//
+// Method from the receiver will be extracted if these rules are satisfied:
+//
+//    - The receiver is exported (begins with an upper case letter) or local
+//      (defined in the package registering the service).
+//    - The method name is exported.
+//    - The method has three arguments: *http.Request, *args, *reply.
+//    - All three arguments are pointers.
+//    - The second and third arguments are exported or local.
+//    - The method has return type error.
+// The method parameter must start with an uppercase letter to indicate that it's exported.
+func (s *Server) RegisterMethod(receiver any, name string, method string) error {
+	return s.services.registerMethod(receiver, name, method)
+}
+
+// RegisterAlias allows to use different names to call a same rpc method.
+func (s *Server) RegisterAlias(alias, target string) error {
+	return s.services.registerAlias(alias, target)
+}
+
+// HasMethod returns true if the given method is registered.
+//
+// The method uses a dotted notation as in "Service.Method".
+func (s *Server) HasMethod(method string) bool {
+	if _, _, err := s.services.get(method); err == nil {
+		return true
+	}
+	return false
+}
+
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		s.writeError(w, 405, "rpc: POST method required, received "+r.Method)
+		WriteError(w, http.StatusMethodNotAllowed, "rpc: POST method required, received "+r.Method)
 		return
 	}
 	contentType := r.Header.Get("Content-Type")
@@ -169,7 +165,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			codec = c
 		}
 	} else if codec = s.codecs[strings.ToLower(contentType)]; codec == nil {
-		s.writeError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
+		WriteError(w, http.StatusUnsupportedMediaType, "rpc: unrecognized Content-Type: "+contentType)
 		return
 	}
 	// Create a new codec request.
@@ -177,18 +173,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	if errMethod != nil {
-		s.writeError(w, 400, errMethod.Error())
+		codecReq.WriteError(w, http.StatusBadRequest, errMethod)
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
-		s.writeError(w, 400, errGet.Error())
+		codecReq.WriteError(w, http.StatusBadRequest, errGet)
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		s.writeError(w, 400, errRead.Error())
+		codecReq.WriteError(w, http.StatusBadRequest, errRead)
 		return
 	}
 
@@ -202,68 +198,63 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			r = req
 		}
 	}
-	// Call the registered Before Function
-	if s.beforeFunc != nil {
-		s.beforeFunc(&RequestInfo{
-			Request: r,
-			Method:  method,
-		})
+
+	requestInfo := &RequestInfo{
+		Request: r,
+		Method:  method,
 	}
 
-	// Call the service method.
-	reply := reflect.New(methodSpec.replyType)
+	// Call the registered Before Function
+	if s.beforeFunc != nil {
+		s.beforeFunc(requestInfo)
+	}
 
-	// omit the HTTP request if the service method doesn't accept it
-	var errValue []reflect.Value
-	if serviceSpec.passReq {
+	// Prepare the reply, we need it even if validation fails
+	reply := reflect.New(methodSpec.replyType)
+	errValue := []reflect.Value{nilErrorValue}
+
+	// Call the registered Validator Function
+	if s.validateFunc.IsValid() {
+		errValue = s.validateFunc.Call([]reflect.Value{reflect.ValueOf(requestInfo), args})
+	}
+
+	// If still no errors after validation, call the method
+	if errValue[0].IsNil() {
 		errValue = methodSpec.method.Func.Call([]reflect.Value{
 			serviceSpec.rcvr,
 			reflect.ValueOf(r),
 			args,
 			reply,
 		})
-	} else {
-		errValue = methodSpec.method.Func.Call([]reflect.Value{
-			serviceSpec.rcvr,
-			args,
-			reply,
-		})
 	}
 
-	// Cast the result to error if needed.
+	// Extract the result to error if needed.
 	var errResult error
+	statusCode := http.StatusOK
 	errInter := errValue[0].Interface()
 	if errInter != nil {
+		statusCode = http.StatusBadRequest
 		errResult = errInter.(error)
 	}
 
 	// Prevents Internet Explorer from MIME-sniffing a response away
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
-	// Encode the response.
-	if errWrite := codecReq.WriteResponse(w, reply.Interface(), errResult); errWrite != nil {
-		s.writeError(w, 400, errWrite.Error())
-	} else {
-		// Call the registered After Function
-		if s.afterFunc != nil {
-			s.afterFunc(&RequestInfo{
-				Request:    r,
-				Method:     method,
-				Error:      errResult,
-				StatusCode: 200,
-			})
-		}
-	}
-}
 
-func (s *Server) writeError(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(status)
-	fmt.Fprint(w, msg)
+	// Encode the response.
+	if errResult == nil {
+		codecReq.WriteResponse(w, reply.Interface())
+	} else {
+		codecReq.WriteError(w, statusCode, errResult)
+	}
+
+	// Call the registered After Function
 	if s.afterFunc != nil {
 		s.afterFunc(&RequestInfo{
-			Error:      fmt.Errorf(msg),
-			StatusCode: status,
+			Request:    r,
+			Method:     method,
+			Error:      errResult,
+			StatusCode: statusCode,
 		})
 	}
 }

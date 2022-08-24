@@ -12,8 +12,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	"github.com/gorilla/rpc"
+	"wbylovesun/rpc"
 )
 
 var null = json.RawMessage([]byte("null"))
@@ -37,10 +36,10 @@ type serverRequest struct {
 type serverResponse struct {
 	// The Object that was returned by the invoked method. This must be null
 	// in case there was an error invoking the method.
-	Result interface{} `json:"result"`
+	Result interface{} `json:"result,omitempty"`
 	// An Error object if there was an error invoking the method. It must be
 	// null if there was no error.
-	Error interface{} `json:"error"`
+	Error interface{} `json:"error,omitempty"`
 	// This must be the same id as the request it is responding to.
 	Id *json.RawMessage `json:"id"`
 }
@@ -59,7 +58,7 @@ type Codec struct {
 }
 
 // NewRequest returns a CodecRequest.
-func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
+func (c *Codec) NewRequest(r *http.Request) rpc.Request {
 	return newCodecRequest(r)
 }
 
@@ -68,7 +67,7 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 // ----------------------------------------------------------------------------
 
 // newCodecRequest returns a new CodecRequest.
-func newCodecRequest(r *http.Request) rpc.CodecRequest {
+func newCodecRequest(r *http.Request) rpc.Request {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	path := r.URL.Path
@@ -115,29 +114,31 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 }
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
-//
-// The err parameter is the error resulted from calling the RPC method,
-// or nil if there was no error.
-func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
-	if c.err != nil {
-		return c.err
-	}
+func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	res := &serverResponse{
 		Result: reply,
-		Error:  &null,
+		Error:  nil,
 		Id:     c.request.Id,
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if methodErr != nil {
-		// Propagate error message as string.
-		res.Error = methodErr.Error()
-		// Result must be null if there was an error invoking the method.
-		res.Result = &struct {
-			ErrorMessage interface{} `json:"error_message"`
-		}{res.Error}
-		w.WriteHeader(500)
+	c.writeServerResponse(w, 200, res)
+}
+
+func (c *CodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+	res := &serverResponse{
+		Result: nil,
+		Error:  err.Error(),
+		Id:     c.request.Id,
 	}
-	encoder := json.NewEncoder(w)
-	encoder.Encode(res.Result)
-	return nil
+	c.writeServerResponse(w, status, res)
+}
+
+func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, status int, res *serverResponse) {
+	b, err := json.Marshal(res.Result)
+	if err != nil {
+		rpc.WriteError(w, 400, err.Error())
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	w.Write(b)
 }

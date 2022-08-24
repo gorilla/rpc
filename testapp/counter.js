@@ -9,16 +9,20 @@ function log(m, label) {
 $(document).ready(function() {
 	$("#incr").click(function() {
 		req = {
-			method : "Counter.Incr",
+			jsonrpc: "2.0",
+			method : "Counter/incr",
 			params : {delta: 1},
+			id: "101",
 		};
 		log("<- " + JSON.stringify(req), "secondary label");
 		$.jsonrpc(req);
 	});
 	$("#get").click(function() {
 		req = {
-			method : "Counter.Get",
+			jsonrpc: "2.0",
+			method : "Counter/get",
 			params : {},
+			id: 100,
 		};
 		log("<- " + JSON.stringify(req), "label");
 		$.jsonrpc(req, {
@@ -40,8 +44,10 @@ $(document).ready(function() {
 	});
 	$("#nan").click(function() {
 		req = {
-			method : "Counter.Nan",
+			jsonrpc: "2.0",
+			method : "Counter/nan",
 			params : {},
+			id: "102",
 		};
 		log("<- " + JSON.stringify(req), "label");
 		$.jsonrpc(req, {
