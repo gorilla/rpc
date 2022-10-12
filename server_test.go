@@ -38,7 +38,7 @@ type Service2 struct {
 
 func TestRegisterService(t *testing.T) {
 	var err error
-	s := NewServer()
+	s := NewServer(MockCodec{})
 	service1 := new(Service1)
 	service2 := new(Service2)
 
@@ -61,7 +61,7 @@ func TestRegisterService(t *testing.T) {
 
 func TestRegisterTCPService(t *testing.T) {
 	var err error
-	s := NewServer()
+	s := NewServer(MockCodec{})
 	service1 := new(Service1)
 	service2 := new(Service2)
 
@@ -105,14 +105,17 @@ func (r MockCodecRequest) ReadRequest(args interface{}) error {
 	return nil
 }
 
-func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
+func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) error {
+	res := reply.(*Service1Response)
+	w.Write([]byte(strconv.Itoa(res.Result)))
+
+	return nil
+}
+
+func (r MockCodecRequest) WriteErrorResponse(w http.ResponseWriter, methodErr error) {
 	if methodErr != nil {
 		w.Write([]byte(methodErr.Error()))
-	} else {
-		res := reply.(*Service1Response)
-		w.Write([]byte(strconv.Itoa(res.Result)))
 	}
-	return nil
 }
 
 type MockResponseWriter struct {
@@ -149,7 +152,7 @@ func TestServeHTTP(t *testing.T) {
 	)
 	expected := A * B
 
-	s := NewServer()
+	s := NewServer(MockCodec{})
 	s.RegisterService(new(Service1), "")
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 
@@ -202,7 +205,7 @@ func TestInterception(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s := NewServer()
+	s := NewServer(MockCodec{})
 	s.RegisterService(new(Service1), "")
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {

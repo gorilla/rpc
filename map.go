@@ -145,20 +145,17 @@ func (m *serviceMap) register(rcvr interface{}, name string, passReq bool) error
 func (m *serviceMap) get(method string) (*service, *serviceMethod, error) {
 	parts := strings.Split(method, ".")
 	if len(parts) != 2 {
-		err := fmt.Errorf("rpc: service/method request ill-formed: %q", method)
-		return nil, nil, err
+		return nil, nil, NewRpcMethodMalformedError("rpc: service/method request ill-formed: %q", method)
 	}
 	m.mutex.Lock()
 	service := m.services[parts[0]]
 	m.mutex.Unlock()
 	if service == nil {
-		err := fmt.Errorf("rpc: can't find service %q", method)
-		return nil, nil, err
+		return nil, nil, NewRpcServiceNotFoundError("rpc: can't find service %q", method)
 	}
 	serviceMethod := service.methods[parts[1]]
 	if serviceMethod == nil {
-		err := fmt.Errorf("rpc: can't find method %q", method)
-		return nil, nil, err
+		return nil, nil, NewRpcMethodNotFoundError("rpc: can't find method %q", method)
 	}
 	return service, serviceMethod, nil
 }

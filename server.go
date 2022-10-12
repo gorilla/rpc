@@ -6,7 +6,6 @@
 package rpc
 
 import (
-	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -28,9 +27,10 @@ type CodecRequest interface {
 	Method() (string, error)
 	// Reads request filling the RPC method args.
 	ReadRequest(interface{}) error
-	// Writes response using the RPC method reply. The error parameter is
-	// the error returned by the method call, if any.
-	WriteResponse(http.ResponseWriter, interface{}, error) error
+	// Writes response using the RPC method reply
+	WriteResponse(http.ResponseWriter, interface{}) error
+	// Writes error responses
+	WriteErrorResponse(http.ResponseWriter, error)
 }
 
 // ----------------------------------------------------------------------------
@@ -38,10 +38,14 @@ type CodecRequest interface {
 // ----------------------------------------------------------------------------
 
 // NewServer returns a new RPC server.
-func NewServer() *Server {
+func NewServer(defaultCodec Codec) *Server {
 	return &Server{
-		codecs:   make(map[string]Codec),
-		services: new(serviceMap),
+		codecs:       make(map[string]Codec),
+		defaultCodec: defaultCodec,
+		services:     new(serviceMap),
+		supportedMethods: map[string]struct{}{
+			http.MethodPost: {},
+		},
 	}
 }
 
@@ -55,11 +59,13 @@ type RequestInfo struct {
 
 // Server serves registered RPC services using registered codecs.
 type Server struct {
-	codecs        map[string]Codec
-	services      *serviceMap
-	interceptFunc func(i *RequestInfo) *http.Request
-	beforeFunc    func(i *RequestInfo)
-	afterFunc     func(i *RequestInfo)
+	codecs           map[string]Codec
+	defaultCodec     Codec
+	services         *serviceMap
+	interceptFunc    func(i *RequestInfo) *http.Request
+	beforeFunc       func(i *RequestInfo)
+	afterFunc        func(i *RequestInfo)
+	supportedMethods map[string]struct{}
 }
 
 // RegisterCodec adds a new codec to the server.
@@ -150,12 +156,18 @@ func (s *Server) RegisterAfterFunc(f func(i *RequestInfo)) {
 	s.afterFunc = f
 }
 
+func (s *Server) AddSupportedHTTPMethod(method string) {
+	s.supportedMethods[method] = struct{}{}
+}
+
 // ServeHTTP
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		s.writeError(w, 405, "rpc: POST method required, received "+r.Method)
+	if _, ok := s.supportedMethods[r.Method]; !ok {
+		err := NewRpcHTTPMethodNotAllowedError("rpc: %s method not allowed", r.Method)
+		s.handleErrorResponse(w, http.StatusMethodNotAllowed, s.defaultCodec.NewRequest(r), err)
 		return
 	}
+
 	contentType := r.Header.Get("Content-Type")
 	idx := strings.Index(contentType, ";")
 	if idx != -1 {
@@ -169,7 +181,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			codec = c
 		}
 	} else if codec = s.codecs[strings.ToLower(contentType)]; codec == nil {
-		s.writeError(w, 415, "rpc: unrecognized Content-Type: "+contentType)
+		err := NewRpcHTTPUnsupportedMediaTypeError("rpc: unrecognized Content-Type: %s", contentType)
+		s.handleErrorResponse(w, http.StatusUnsupportedMediaType, s.defaultCodec.NewRequest(r), err)
 		return
 	}
 	// Create a new codec request.
@@ -177,18 +190,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get service method to be called.
 	method, errMethod := codecReq.Method()
 	if errMethod != nil {
-		s.writeError(w, 400, errMethod.Error())
+		s.handleErrorResponse(w, http.StatusOK, codecReq, NewRpcCodecRequestMethodError(errMethod.Error()))
 		return
 	}
 	serviceSpec, methodSpec, errGet := s.services.get(method)
 	if errGet != nil {
-		s.writeError(w, 400, errGet.Error())
+		s.handleErrorResponse(w, http.StatusOK, codecReq, errGet)
 		return
 	}
 	// Decode the args.
 	args := reflect.New(methodSpec.argsType)
 	if errRead := codecReq.ReadRequest(args.Interface()); errRead != nil {
-		s.writeError(w, 400, errRead.Error())
+		s.handleErrorResponse(w, http.StatusOK, codecReq, NewRpcCodecReadRequestError(errRead.Error()))
 		return
 	}
 
@@ -241,29 +254,23 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// from the declared content-type
 	w.Header().Set("x-content-type-options", "nosniff")
 	// Encode the response.
-	if errWrite := codecReq.WriteResponse(w, reply.Interface(), errResult); errWrite != nil {
-		s.writeError(w, 400, errWrite.Error())
-	} else {
-		// Call the registered After Function
-		if s.afterFunc != nil {
-			s.afterFunc(&RequestInfo{
-				Request:    r,
-				Method:     method,
-				Error:      errResult,
-				StatusCode: 200,
-			})
-		}
+	if errWrite := codecReq.WriteResponse(w, reply.Interface()); errWrite != nil {
+		s.handleErrorResponse(w, http.StatusOK, codecReq, NewRpcCodecWriteResponseError(errWrite.Error()))
+		return
+	}
+
+	// Call the registered After Function
+	if s.afterFunc != nil {
+		s.afterFunc(&RequestInfo{
+			Request:    r,
+			Method:     method,
+			Error:      errResult,
+			StatusCode: 200,
+		})
 	}
 }
 
-func (s *Server) writeError(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+func (s *Server) handleErrorResponse(w http.ResponseWriter, status int, codecReq CodecRequest, err error) {
 	w.WriteHeader(status)
-	fmt.Fprint(w, msg)
-	if s.afterFunc != nil {
-		s.afterFunc(&RequestInfo{
-			Error:      fmt.Errorf(msg),
-			StatusCode: status,
-		})
-	}
+	codecReq.WriteErrorResponse(w, err)
 }
