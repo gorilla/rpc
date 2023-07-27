@@ -7,12 +7,13 @@ package json2
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/rpc/v2"
 )
 
-var null = json.RawMessage([]byte("null"))
+// var null = json.RawMessage([]byte("null"))
 var Version = "2.0"
 
 // ----------------------------------------------------------------------------
@@ -117,7 +118,10 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder, errorMapper func(erro
 		}
 	}
 
-	r.Body.Close()
+	er := r.Body.Close()
+	if er != nil {
+		log.Print(er)
+	}
 	return &CodecRequest{request: req, err: err, encoder: encoder, errorMapper: errorMapper}
 }
 
