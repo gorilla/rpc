@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/rpc/v2"
 )
 
-var null = json.RawMessage([]byte("null"))
+// var null = json.RawMessage([]byte("null"))
 var Version = "2.0"
 
 // ----------------------------------------------------------------------------
@@ -117,7 +117,6 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder, errorMapper func(erro
 		}
 	}
 
-	r.Body.Close()
 	return &CodecRequest{request: req, err: err, encoder: encoder, errorMapper: errorMapper}
 }
 
