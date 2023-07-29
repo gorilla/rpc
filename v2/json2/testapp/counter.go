@@ -44,8 +44,7 @@ func main() {
 	address := flag.String("address", ":65534", "")
 	s := rpc.NewServer()
 	s.RegisterCodec(json2.NewCustomCodec(&rpc.CompressionSelector{}), "application/json")
-	err := s.RegisterService(new(Counter), "")
-	if err != nil {
+	if err := s.RegisterService(new(Counter), ""); err != nil {
 		log.Fatal(err)
 	}
 	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./"))))
@@ -53,7 +52,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              *address,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: 5 * time.Minute,
 	}
 
 	log.Fatal(server.ListenAndServe())

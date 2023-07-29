@@ -88,8 +88,7 @@ func field(name string, blob json.RawMessage) (v interface{}, ok bool) {
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
-	err := s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err := s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 

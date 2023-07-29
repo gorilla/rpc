@@ -79,15 +79,11 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	}
 	req.Method = path[index+1:]
 	err := json.NewDecoder(r.Body).Decode(&req.Params)
-	er := r.Body.Close()
-	if er != nil {
-		log.Print(er)
-	}
-	var errr error
+	var codecErr error
 	if err != io.EOF {
-		errr = err
+		codecErr = err
 	}
-	return &CodecRequest{request: req, err: errr}
+	return &CodecRequest{request: req, err: codecErr}
 }
 
 // CodecRequest decodes and encodes a single request.
@@ -142,8 +138,7 @@ func (c *CodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, m
 		w.WriteHeader(500)
 	}
 	encoder := json.NewEncoder(w)
-	err := encoder.Encode(res.Result)
-	if err != nil {
+	if err := encoder.Encode(res.Result); err != nil {
 		log.Fatal(err)
 	}
 	return nil

@@ -83,8 +83,7 @@ func executeRaw(t *testing.T, s *rpc.Server, req interface{}, res interface{}) i
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
-	err := s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err := s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,8 +111,7 @@ func TestServiceBeforeAfter(t *testing.T) {
 	s.RegisterCodec(NewCodec(), "application/json")
 	service := &Service1{}
 	service.beforeAfterContext = map[string]string{}
-	err := s.RegisterService(service, "")
-	if err != nil {
+	if err := s.RegisterService(service, ""); err != nil {
 		t.Fatal(err)
 	}
 

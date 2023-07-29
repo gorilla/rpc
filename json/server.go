@@ -8,7 +8,6 @@ package json
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/rpc"
@@ -70,10 +69,6 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
-	er := r.Body.Close()
-	if er != nil {
-		log.Print(er)
-	}
 	return &CodecRequest{request: req, err: err}
 }
 

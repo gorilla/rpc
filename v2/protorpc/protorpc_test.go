@@ -66,8 +66,7 @@ func execute(t *testing.T, s *rpc.Server, method string, req, res interface{}) (
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
-	err := s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err := s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 

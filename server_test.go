@@ -108,14 +108,12 @@ func (r MockCodecRequest) ReadRequest(args interface{}) error {
 
 func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
 	if methodErr != nil {
-		_, err := w.Write([]byte(methodErr.Error()))
-		if err != nil {
+		if _, err := w.Write([]byte(methodErr.Error())); err != nil {
 			log.Fatal(err)
 		}
 	} else {
 		res := reply.(*Service1Response)
-		_, err := w.Write([]byte(strconv.Itoa(res.Result)))
-		if err != nil {
+		if _, err := w.Write([]byte(strconv.Itoa(res.Result))); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -157,8 +155,7 @@ func TestServeHTTP(t *testing.T) {
 	expected := A * B
 
 	s := NewServer()
-	err := s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err := s.RegisterService(new(Service1), ""); err != nil {
 		log.Fatal(err)
 	}
 	s.RegisterCodec(MockCodec{A, B}, "mock")
@@ -213,8 +210,7 @@ func TestInterception(t *testing.T) {
 	}
 
 	s := NewServer()
-	err = s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err = s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 

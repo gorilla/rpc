@@ -81,8 +81,7 @@ func (r MockCodecRequest) ReadRequest(args interface{}) error {
 
 func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	res := reply.(*Service1Response)
-	_, err := w.Write([]byte(strconv.Itoa(res.Result)))
-	if err != nil {
+	if _, err := w.Write([]byte(strconv.Itoa(res.Result))); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -130,8 +129,7 @@ func TestServeHTTP(t *testing.T) {
 	expected := A * B
 
 	s := NewServer()
-	err := s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err := s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 	s.RegisterCodec(MockCodec{A, B}, "mock")
@@ -185,8 +183,7 @@ func TestInterception(t *testing.T) {
 	}
 
 	s := NewServer()
-	err = s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err = s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 	s.RegisterCodec(MockCodec{A, B}, "mock")
@@ -225,8 +222,7 @@ func TestValidationSuccessful(t *testing.T) {
 	validate := func(info *RequestInfo, v interface{}) error { return nil }
 
 	s := NewServer()
-	err := s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err := s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -260,8 +256,7 @@ func TestValidationFails(t *testing.T) {
 	}
 
 	s := NewServer()
-	err := s.RegisterService(new(Service1), "")
-	if err != nil {
+	if err := s.RegisterService(new(Service1), ""); err != nil {
 		t.Fatal(err)
 	}
 

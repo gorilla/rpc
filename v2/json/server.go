@@ -82,10 +82,6 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
-	er := r.Body.Close()
-	if er != nil {
-		log.Print(er)
-	}
 	return &CodecRequest{request: req, err: err}
 }
 
@@ -151,8 +147,7 @@ func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, status int, re
 	if err == nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(status)
-		_, err := w.Write(b)
-		if err != nil {
+		if _, err := w.Write(b); err != nil {
 			log.Fatal(err)
 		}
 	} else {
