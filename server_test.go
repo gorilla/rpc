@@ -6,6 +6,7 @@
 package rpc
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"testing"
@@ -88,7 +89,7 @@ type MockCodec struct {
 }
 
 func (c MockCodec) NewRequest(*http.Request) CodecRequest {
-	return MockCodecRequest{c.A, c.B}
+	return MockCodecRequest(c)
 }
 
 type MockCodecRequest struct {
@@ -107,10 +108,14 @@ func (r MockCodecRequest) ReadRequest(args interface{}) error {
 
 func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
 	if methodErr != nil {
-		w.Write([]byte(methodErr.Error()))
+		if _, err := w.Write([]byte(methodErr.Error())); err != nil {
+			log.Fatal(err)
+		}
 	} else {
 		res := reply.(*Service1Response)
-		w.Write([]byte(strconv.Itoa(res.Result)))
+		if _, err := w.Write([]byte(strconv.Itoa(res.Result))); err != nil {
+			log.Fatal(err)
+		}
 	}
 	return nil
 }
@@ -150,7 +155,9 @@ func TestServeHTTP(t *testing.T) {
 	expected := A * B
 
 	s := NewServer()
-	s.RegisterService(new(Service1), "")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		log.Fatal(err)
+	}
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 
 	r, err := http.NewRequest("POST", "", nil)
@@ -203,7 +210,10 @@ func TestInterception(t *testing.T) {
 	}
 
 	s := NewServer()
-	s.RegisterService(new(Service1), "")
+	if err = s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
+
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {
 		return r2

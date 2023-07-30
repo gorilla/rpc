@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -78,12 +79,11 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	}
 	req.Method = path[index+1:]
 	err := json.NewDecoder(r.Body).Decode(&req.Params)
-	r.Body.Close()
-	var errr error
+	var codecErr error
 	if err != io.EOF {
-		errr = err
+		codecErr = err
 	}
-	return &CodecRequest{request: req, err: errr}
+	return &CodecRequest{request: req, err: codecErr}
 }
 
 // CodecRequest decodes and encodes a single request.
@@ -142,5 +142,7 @@ func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, status int, re
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write(b)
+	if _, err = w.Write(b); err != nil {
+		log.Fatal(err)
+	}
 }

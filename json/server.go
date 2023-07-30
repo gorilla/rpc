@@ -69,7 +69,6 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
 	err := json.NewDecoder(r.Body).Decode(req)
-	r.Body.Close()
 	return &CodecRequest{request: req, err: err}
 }
 
