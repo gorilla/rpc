@@ -10,4 +10,4 @@
 
 gorilla/rpc is a foundation for RPC over HTTP services, providing access to the exported methods of an object through HTTP requests.
 
-Read the full documentation here: https://www.gorillatoolkit.org/pkg/rpc
+Read the full documentation here: https://pkg.go.dev/github.com/gorilla/rpc#section-documentation
