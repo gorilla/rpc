@@ -6,10 +6,13 @@
 package json
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
+	"log"
+	"math"
+	"math/big"
 )
 
 // ----------------------------------------------------------------------------
@@ -36,10 +39,15 @@ type clientResponse struct {
 
 // EncodeClientRequest encodes parameters for a JSON-RPC client request.
 func EncodeClientRequest(method string, args interface{}) ([]byte, error) {
+	val, err := rand.Int(rand.Reader, big.NewInt(int64(math.MaxInt64)))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	c := &clientRequest{
 		Method: method,
 		Params: [1]interface{}{args},
-		Id:     uint64(rand.Int63()),
+		Id:     val.Uint64(),
 	}
 	return json.Marshal(c)
 }
@@ -55,7 +63,7 @@ func DecodeClientResponse(r io.Reader, reply interface{}) error {
 		return &Error{Data: c.Error}
 	}
 	if c.Result == nil {
-		return fmt.Errorf("Unexpected null result")
+		return fmt.Errorf("unexpected null result")
 	}
 	return json.Unmarshal(*c.Result, reply)
 }

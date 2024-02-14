@@ -88,7 +88,9 @@ func field(name string, blob json.RawMessage) (v interface{}, ok bool) {
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
-	s.RegisterService(new(Service1), "")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
 
 	var res Service1Response
 	if err := execute(t, s, "Service1.Multiply", &Service1Request{4, 2}, &res); err != nil {
@@ -126,7 +128,7 @@ func TestClientNullResult(t *testing.T) {
 	if err == nil {
 		t.Fatal(err)
 	}
-	if err.Error() != "Unexpected null result" {
+	if err.Error() != "unexpected null result" {
 		t.Fatalf("Unexpected error: %s", err)
 	}
 }

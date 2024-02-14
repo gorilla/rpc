@@ -9,7 +9,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"testing"
@@ -64,7 +65,7 @@ type MockCodec struct {
 }
 
 func (c MockCodec) NewRequest(*http.Request) CodecRequest {
-	return MockCodecRequest{c.A, c.B}
+	return MockCodecRequest(c)
 }
 
 type MockCodecRequest struct {
@@ -83,12 +84,17 @@ func (r MockCodecRequest) ReadRequest(args interface{}) error {
 
 func (r MockCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
 	res := reply.(*Service1Response)
-	w.Write([]byte(strconv.Itoa(res.Result)))
+	if _, err := w.Write([]byte(strconv.Itoa(res.Result))); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (r MockCodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
 	w.WriteHeader(status)
-	w.Write([]byte(err.Error()))
+	_, er := w.Write([]byte(err.Error()))
+	if er != nil {
+		log.Fatal(er)
+	}
 }
 
 type MockCodecJson struct {
@@ -100,7 +106,7 @@ func (c MockCodecJson) NewRequest(r *http.Request) CodecRequest {
 	}
 
 	inp := new(Service1Request)
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return MockCodecRequest{}
 	}
@@ -110,7 +116,7 @@ func (c MockCodecJson) NewRequest(r *http.Request) CodecRequest {
 		return MockCodecRequest{}
 	}
 
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+	r.Body = io.NopCloser(bytes.NewBuffer(b))
 
 	return MockCodecRequest{inp.A, inp.B}
 }
@@ -150,7 +156,9 @@ func TestServeHTTP(t *testing.T) {
 	expected := A * B
 
 	s := NewServer()
-	s.RegisterService(new(Service1), "")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 	r, err := http.NewRequest("POST", "", nil)
 	if err != nil {
@@ -202,7 +210,9 @@ func TestInterception(t *testing.T) {
 	}
 
 	s := NewServer()
-	s.RegisterService(new(Service1), "")
+	if err = s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 	s.RegisterInterceptFunc(func(i *RequestInfo) *http.Request {
 		return r2
@@ -298,7 +308,7 @@ func TestBeforeFunc(t *testing.T) {
 			t.Fail()
 		}
 
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+		r.Body = io.NopCloser(bytes.NewBuffer(b))
 		i.Request = r
 	})
 
@@ -331,7 +341,10 @@ func TestValidationSuccessful(t *testing.T) {
 	validate := func(info *RequestInfo, v interface{}) error { return nil }
 
 	s := NewServer()
-	s.RegisterService(new(Service1), "")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
+
 	s.RegisterCodec(MockCodec{A, B}, "mock")
 	s.RegisterValidateRequestFunc(validate)
 
@@ -353,7 +366,7 @@ func TestValidationSuccessful(t *testing.T) {
 func TestValidationFails(t *testing.T) {
 	const expected = "this instance only supports zero values"
 
-	validate := func(r *RequestInfo, v interface{}) error {
+	validate := func(_ *RequestInfo, v interface{}) error {
 		req := v.(*Service1Request)
 		if req.A != 0 || req.B != 0 {
 			return errors.New(expected)
@@ -362,7 +375,10 @@ func TestValidationFails(t *testing.T) {
 	}
 
 	s := NewServer()
-	s.RegisterService(new(Service1), "")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
+
 	s.RegisterCodec(MockCodec{1, 2}, "mock")
 	s.RegisterValidateRequestFunc(validate)
 

@@ -8,13 +8,13 @@ package json2
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/gorilla/rpc/v2"
 )
 
-var null = json.RawMessage([]byte("null"))
+// var null = json.RawMessage([]byte("null"))
 var Version = "2.0"
 
 // ----------------------------------------------------------------------------
@@ -104,7 +104,7 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder, errorMapper func(erro
 	req := new(serverRequest)
 
 	// Copy request body for decoding and access of underlying methods
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		err = &Error{
 			Code:    E_PARSE,
@@ -134,7 +134,7 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder, errorMapper func(erro
 	}
 
 	// Add close method to buffer and pass as request body
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+	r.Body = io.NopCloser(bytes.NewBuffer(b))
 
 	return &CodecRequest{request: req, err: err, encoder: encoder, errorMapper: errorMapper}
 }

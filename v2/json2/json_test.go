@@ -155,7 +155,9 @@ func executeInvalidJSON(t *testing.T, s *rpc.Server, res interface{}) error {
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
-	s.RegisterService(new(Service1), "")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
 
 	var res Service1Response
 	if err := execute(t, s, "Service1.Multiply", &Service1Request{4, 2}, &res); err != nil {
@@ -229,7 +231,9 @@ func TestServiceWithErrorMapper(t *testing.T) {
 
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCustomCodecWithErrorMapper(rpc.DefaultEncoderSelector, errorMapper), "application/json")
-	s.RegisterService(new(Service1), "")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
 
 	var res Service1Response
 	if err := execute(t, s, "Service1.MappedResponseError", &Service1Request{4, 2}, &res); err == nil {

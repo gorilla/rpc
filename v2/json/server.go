@@ -10,7 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/rpc/v2"
@@ -83,7 +84,7 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	req := new(serverRequest)
 
 	// Copy request body for decoding and access of underlying methods
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return &CodecRequest{request: req, err: err}
 	}
@@ -94,7 +95,7 @@ func newCodecRequest(r *http.Request) rpc.CodecRequest {
 	err = json.Unmarshal(b, req)
 
 	// Add close method to buffer and pass as request body
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+	r.Body = io.NopCloser(bytes.NewBuffer(b))
 
 	return &CodecRequest{request: req, err: err}
 }
@@ -161,7 +162,9 @@ func (c *CodecRequest) writeServerResponse(w http.ResponseWriter, status int, re
 	if err == nil {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(status)
-		w.Write(b)
+		if _, err := w.Write(b); err != nil {
+			log.Fatal(err)
+		}
 	} else {
 		// Not sure in which case will this happen. But seems harmless.
 		rpc.WriteError(w, 400, err.Error())
