@@ -6,7 +6,9 @@
 package json2
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/gorilla/rpc/v2"
@@ -99,10 +101,24 @@ func (c *Codec) NewRequest(r *http.Request) rpc.CodecRequest {
 
 // newCodecRequest returns a new CodecRequest.
 func newCodecRequest(r *http.Request, encoder rpc.Encoder, errorMapper func(error) error) rpc.CodecRequest {
-	// Decode the request body and check if RPC method is valid.
 	req := new(serverRequest)
-	err := json.NewDecoder(r.Body).Decode(req)
 
+	// Copy request body for decoding and access of underlying methods
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		err = &Error{
+			Code:    E_PARSE,
+			Message: err.Error(),
+			Data:    req,
+		}
+
+		return &CodecRequest{request: req, err: err, encoder: encoder, errorMapper: errorMapper}
+	}
+	// Close original body
+	r.Body.Close()
+
+	// Decode the request body and check if RPC method is valid.
+	err = json.Unmarshal(b, req)
 	if err != nil {
 		err = &Error{
 			Code:    E_PARSE,
@@ -116,6 +132,9 @@ func newCodecRequest(r *http.Request, encoder rpc.Encoder, errorMapper func(erro
 			Data:    req,
 		}
 	}
+
+	// Add close method to buffer and pass as request body
+	r.Body = io.NopCloser(bytes.NewBuffer(b))
 
 	return &CodecRequest{request: req, err: err, encoder: encoder, errorMapper: errorMapper}
 }
