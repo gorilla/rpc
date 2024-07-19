@@ -152,6 +152,23 @@ func executeInvalidJSON(t *testing.T, s *rpc.Server, res interface{}) error {
 	return DecodeClientResponse(w.Body, res)
 }
 
+func TestNewService(t *testing.T) {
+	s := rpc.NewServer()
+	s.RegisterCodec(NewCodec(), "application/json")
+	if err := s.RegisterService(new(Service1), "Service1.service2.service3"); err != nil {
+		t.Fatal(err)
+	}
+
+	var res Service1Response
+	if err := execute(t, s, "Service1.service2.service3.Multiply",
+		&Service1Request{4, 2}, &res); err != nil {
+		t.Error("Expected err to be nil, but got:", err)
+	}
+
+	println("result:", res.Result)
+
+}
+
 func TestService(t *testing.T) {
 	s := rpc.NewServer()
 	s.RegisterCodec(NewCodec(), "application/json")
