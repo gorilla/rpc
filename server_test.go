@@ -37,11 +37,20 @@ func (t *Service1) Add(req *Service1Request, res *Service1Response) error {
 type Service2 struct {
 }
 
+type Service3 struct {
+}
+
+func (t *Service3) Multiply(r *http.Request, req *Service1Request, res *Service1Response) error {
+	res.Result = req.A * req.B
+	return nil
+}
+
 func TestRegisterService(t *testing.T) {
 	var err error
 	s := NewServer()
 	service1 := new(Service1)
 	service2 := new(Service2)
+	service3 := new(Service3)
 
 	// Inferred name.
 	err = s.RegisterService(service1, "")
@@ -58,6 +67,11 @@ func TestRegisterService(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected error on service2")
 	}
+
+	err = s.RegisterServiceWithMethod(service3, "", LowerFirstLetter)
+	if err != nil || !s.HasMethod("Service3.multiply") {
+		t.Errorf("Expected to be registered: Service3.multiply")
+	}
 }
 
 func TestRegisterTCPService(t *testing.T) {
@@ -65,6 +79,7 @@ func TestRegisterTCPService(t *testing.T) {
 	s := NewServer()
 	service1 := new(Service1)
 	service2 := new(Service2)
+	service3 := new(Service3)
 
 	// Inferred name.
 	err = s.RegisterTCPService(service1, "")
@@ -78,6 +93,56 @@ func TestRegisterTCPService(t *testing.T) {
 	}
 	// No methods.
 	err = s.RegisterTCPService(service2, "")
+	if err == nil {
+		t.Errorf("Expected error on service2")
+	}
+	err = s.RegisterServiceWithMethod(service3, "", LowerFirstLetter)
+	if err != nil || !s.HasMethod("Service3.multiply") {
+		t.Errorf("Expected to be registered: Service3.multiply")
+	}
+}
+
+func TestRegisterServiceWithSlash(t *testing.T) {
+	var err error
+	s := NewServer().SetConcatStyle("/")
+	service1 := new(Service1)
+	service2 := new(Service2)
+
+	// Inferred name.
+	err = s.RegisterService(service1, "")
+	if err != nil || !s.HasMethod("Service1/Multiply") {
+		t.Errorf("Expected to be registered: Service1/Multiply")
+	}
+	// Provided name.
+	err = s.RegisterService(service1, "Foo")
+	if err != nil || !s.HasMethod("Foo/Multiply") {
+		t.Errorf("Expected to be registered: Foo/Multiply")
+	}
+	// No methods.
+	err = s.RegisterService(service2, "")
+	if err == nil {
+		t.Errorf("Expected error on service2")
+	}
+}
+
+func TestRegisterServiceWithUnderline(t *testing.T) {
+	var err error
+	s := NewServer().SetConcatStyle("_")
+	service1 := new(Service1)
+	service2 := new(Service2)
+
+	// Inferred name.
+	err = s.RegisterService(service1, "")
+	if err != nil || !s.HasMethod("Service1_Multiply") {
+		t.Errorf("Expected to be registered: Service1_Multiply")
+	}
+	// Provided name.
+	err = s.RegisterService(service1, "Foo")
+	if err != nil || !s.HasMethod("Foo_Multiply") {
+		t.Errorf("Expected to be registered: Foo_Multiply")
+	}
+	// No methods.
+	err = s.RegisterService(service2, "")
 	if err == nil {
 		t.Errorf("Expected error on service2")
 	}

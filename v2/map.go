@@ -49,7 +49,10 @@ type serviceMap struct {
 }
 
 // register adds a new service using reflection to extract its methods.
-func (m *serviceMap) register(rcvr interface{}, name string) error {
+func (m *serviceMap) register(rcvr interface{}, name string, f func(method string) string) error {
+	if f == nil {
+		f = func(method string) string { return method }
+	}
 	// Setup service.
 	s := &service{
 		name:     name,
@@ -71,7 +74,7 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 	for i := 0; i < s.rcvrType.NumMethod(); i++ {
 		method := s.rcvrType.Method(i)
 		mtype := method.Type
-		// Method must be exported.
+		methodName := f(method.Name)
 		if method.PkgPath != "" {
 			continue
 		}
@@ -101,7 +104,7 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 		if returnType := mtype.Out(0); returnType != typeOfError {
 			continue
 		}
-		s.methods[method.Name] = &serviceMethod{
+		s.methods[methodName] = &serviceMethod{
 			method:    method,
 			argsType:  args.Elem(),
 			replyType: reply.Elem(),
@@ -126,8 +129,8 @@ func (m *serviceMap) register(rcvr interface{}, name string) error {
 // get returns a registered service given a method name.
 //
 // The method name uses a dotted notation as in "Service.Method".
-func (m *serviceMap) get(method string) (*service, *serviceMethod, error) {
-	parts := strings.Split(method, ".")
+func (m *serviceMap) get(method string, concatStyle string) (*service, *serviceMethod, error) {
+	parts := strings.Split(method, concatStyle)
 	if len(parts) != 2 {
 		err := fmt.Errorf("rpc: service/method request ill-formed: %q", method)
 		return nil, nil, err
