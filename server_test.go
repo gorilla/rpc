@@ -8,6 +8,7 @@ package rpc
 import (
 	"log"
 	"net/http"
+	"reflect"
 	"strconv"
 	"testing"
 )
@@ -238,3 +239,40 @@ func TestInterception(t *testing.T) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
 	}
 }
+
+func TestIsExportedAndBuiltin(t *testing.T) {
+	if !isExported("Service") {
+		t.Errorf("expected Service to be exported")
+	}
+	if isExported("service") {
+		t.Errorf("expected service to not be exported")
+	}
+	if isExported("") {
+		t.Errorf("expected empty string to not be exported")
+	}
+
+	intType := reflect.TypeOf(0)
+	if !isExportedOrBuiltin(intType) {
+		t.Errorf("expected int to be builtin/exported")
+	}
+
+	ptrType := reflect.TypeOf(&Service1{})
+	if !isExportedOrBuiltin(ptrType) {
+		t.Errorf("expected *Service1 to be exported")
+	}
+}
+
+func TestRegisterDuplicateService(t *testing.T) {
+	s := NewServer()
+	service1 := new(Service1)
+	err := s.RegisterService(service1, "Duplicate")
+	if err != nil {
+		t.Fatalf("unexpected error registering service: %v", err)
+	}
+
+	err = s.RegisterService(service1, "Duplicate")
+	if err == nil {
+		t.Errorf("expected error registering duplicate service name, got nil")
+	}
+}
+
