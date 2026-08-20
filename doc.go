@@ -16,7 +16,7 @@ compared to net/rpc:
 	- Service methods also receive http.Request as parameter.
 	- This package can be used on Google App Engine.
 
-Let's setup a server and register a codec and service:
+Let's set up a server and register a codec and service:
 
 	import (
 		"net/http"
@@ -64,7 +64,7 @@ The service must be exported (begin with an upper case letter) or local
 (defined in the package registering the service).
 
 When a service is registered, the server inspects the service methods
-and make available the ones that follow these rules:
+and makes available the ones that follow these rules:
 
 	- The method name is exported.
 	- The method has three arguments: *http.Request, *args, *reply.
