@@ -66,5 +66,8 @@ func DecodeClientResponse(r io.Reader, reply interface{}) error {
 	if c.Result == nil {
 		return errors.New("result is null")
 	}
+	if reply == nil {
+		return nil
+	}
 	return json.Unmarshal(*c.Result, reply)
 }

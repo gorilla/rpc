@@ -135,3 +135,20 @@ func TestServiceBeforeAfter(t *testing.T) {
 		t.Errorf("Expected after in context to be 'After is true', got %s", afterValue)
 	}
 }
+
+func TestDecodeClientResponseNilReply(t *testing.T) {
+	ok := `{"id":1,"result":{"Result":8},"error":null}`
+	if err := DecodeClientResponse(bytes.NewReader([]byte(ok)), nil); err != nil {
+		t.Error("Expected nil reply to skip result unmarshal, got:", err)
+	}
+
+	rpcErr := `{"id":1,"result":null,"error":"response error"}`
+	if err := DecodeClientResponse(bytes.NewReader([]byte(rpcErr)), nil); err == nil {
+		t.Error("Expected RPC error even when reply is nil")
+	}
+
+	nullRes := `{"id":1,"result":null,"error":null}`
+	if err := DecodeClientResponse(bytes.NewReader([]byte(nullRes)), nil); err == nil {
+		t.Error("Expected error for null result even when reply is nil")
+	}
+}

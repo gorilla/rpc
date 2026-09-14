@@ -289,3 +289,24 @@ func TestDecodeNullResult(t *testing.T) {
 		t.Error("Expected result to be nil, but got:", result)
 	}
 }
+
+func TestDecodeClientResponseNilReply(t *testing.T) {
+	ok := `{"jsonrpc":"2.0","id":1,"result":{"Result":8}}`
+	if err := DecodeClientResponse(bytes.NewReader([]byte(ok)), nil); err != nil {
+		t.Error("Expected nil reply to skip result unmarshal, got:", err)
+	}
+
+	rpcErr := `{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"response error"}}`
+	if err := DecodeClientResponse(bytes.NewReader([]byte(rpcErr)), nil); err == nil {
+		t.Error("Expected RPC error even when reply is nil")
+	} else if jsonRpcErr, ok := err.(*Error); !ok {
+		t.Errorf("Expected *Error, got %T: %s", err, err)
+	} else if jsonRpcErr.Message != "response error" {
+		t.Errorf("Expected message %q, got %q", "response error", jsonRpcErr.Message)
+	}
+
+	nullRes := `{"jsonrpc":"2.0","id":1,"result":null}`
+	if err := DecodeClientResponse(bytes.NewReader([]byte(nullRes)), nil); err != ErrNullResult {
+		t.Error("Expected ErrNullResult for null result even when reply is nil, got:", err)
+	}
+}
