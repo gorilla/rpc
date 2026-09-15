@@ -274,6 +274,87 @@ func TestServiceWithErrorMapper(t *testing.T) {
 	}
 }
 
+const failingCustomTypeErr = "failingCustomType: bad value"
+
+type failingCustomType struct{}
+
+func (f *failingCustomType) UnmarshalJSON([]byte) error {
+	return errors.New(failingCustomTypeErr)
+}
+
+type ServiceCustomRequest struct {
+	Field failingCustomType `json:"field"`
+}
+
+type ServiceCustom struct{}
+
+func (t *ServiceCustom) Echo(r *http.Request, req *ServiceCustomRequest, res *Service1Response) error {
+	res.Result = 1
+	return nil
+}
+
+func TestReadRequestParamShapes(t *testing.T) {
+	s := rpc.NewServer()
+	s.RegisterCodec(NewCodec(), "application/json")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RegisterService(new(ServiceCustom), ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Object params with a field that fails custom unmarshal must keep that
+	// error (E_INVALID_REQ), not retry as a 1-element array.
+	var res Service1Response
+	raw := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "ServiceCustom.Echo",
+		"params":  map[string]interface{}{"field": "x"},
+		"id":      1,
+	}
+	err := executeRaw(t, s, raw, &res)
+	if err == nil {
+		t.Fatal("expected unmarshal error, got nil")
+	}
+	jsonRpcErr, ok := err.(*Error)
+	if !ok {
+		t.Fatalf("expected *Error, got %T: %s", err, err)
+	}
+	if jsonRpcErr.Code != E_INVALID_REQ {
+		t.Errorf("expected E_INVALID_REQ (%d), got %d", E_INVALID_REQ, jsonRpcErr.Code)
+	}
+	if jsonRpcErr.Message != failingCustomTypeErr {
+		t.Errorf("expected original object unmarshal error %q, got %q", failingCustomTypeErr, jsonRpcErr.Message)
+	}
+	if strings.Contains(jsonRpcErr.Message, "[1]interface") {
+		t.Errorf("misleading array-shape error leaked: %q", jsonRpcErr.Message)
+	}
+
+	// By-name object params still work.
+	res = Service1Response{}
+	if err := execute(t, s, "Service1.Multiply", &Service1Request{4, 2}, &res); err != nil {
+		t.Error("by-name object params:", err)
+	}
+	if res.Result != 8 {
+		t.Errorf("by-name: got %v, want 8", res.Result)
+	}
+
+	// By-position array params still work.
+	res = Service1Response{}
+	pos := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "Service1.Multiply",
+		"params":  []interface{}{map[string]interface{}{"A": 4, "B": 2}},
+		"id":      1,
+	}
+	if err := executeRaw(t, s, pos, &res); err != nil {
+		t.Error("by-position array params:", err)
+	}
+	if res.Result != 8 {
+		t.Errorf("by-position: got %v, want 8", res.Result)
+	}
+}
+
 func TestDecodeNullResult(t *testing.T) {
 	data := `{"jsonrpc": "2.0", "id": 12345, "result": null}`
 	reader := bytes.NewReader([]byte(data))

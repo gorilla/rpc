@@ -175,16 +175,28 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 		// Note: if c.request.Params is nil it's not an error, it's an optional member.
 		// JSON params structured object. Unmarshal to the args object.
 		if err := json.Unmarshal(*c.request.Params, args); err != nil {
-			// Clearly JSON params is not a structured object,
-			// fallback and attempt an unmarshal with JSON params as
-			// array value and RPC params is struct. Unmarshal into
-			// array containing the request struct.
-			params := [1]interface{}{args}
-			if err = json.Unmarshal(*c.request.Params, &params); err != nil {
+			// JSON-RPC 2.0 params is either an Object (by-name) or an Array
+			// (by-position). If params is an object, do not fall back to the
+			// array form — that hides the original unmarshal error (for
+			// example a custom type that failed to parse).
+			if p := bytes.TrimLeft(*c.request.Params, " \t\n\r"); len(p) > 0 && p[0] == '{' {
 				c.err = &Error{
 					Code:    E_INVALID_REQ,
 					Message: err.Error(),
 					Data:    c.request.Params,
+				}
+			} else {
+				// Clearly JSON params is not a structured object,
+				// fallback and attempt an unmarshal with JSON params as
+				// array value and RPC params is struct. Unmarshal into
+				// array containing the request struct.
+				params := [1]interface{}{args}
+				if err = json.Unmarshal(*c.request.Params, &params); err != nil {
+					c.err = &Error{
+						Code:    E_INVALID_REQ,
+						Message: err.Error(),
+						Data:    c.request.Params,
+					}
 				}
 			}
 		}
