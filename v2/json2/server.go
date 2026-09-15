@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 
 	"github.com/gorilla/rpc/v2"
 )
@@ -175,12 +176,12 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 		// Note: if c.request.Params is nil it's not an error, it's an optional member.
 		// JSON params structured object. Unmarshal to the args object.
 		if err := json.Unmarshal(*c.request.Params, args); err != nil {
-			// Clearly JSON params is not a structured object,
-			// fallback and attempt an unmarshal with JSON params as
-			// array value and RPC params is struct. Unmarshal into
-			// array containing the request struct.
-			params := [1]interface{}{args}
-			if err = json.Unmarshal(*c.request.Params, &params); err != nil {
+			// Clearly JSON params is not a structured object.
+			// JSON-RPC 2.0 by-position params is an array of values in
+			// the method's expected order. First try the historical
+			// one-element wrap (array of a single object). If that
+			// fails, map array elements onto exported struct fields.
+			if err = unmarshalArrayParams(*c.request.Params, args); err != nil {
 				c.err = &Error{
 					Code:    E_INVALID_REQ,
 					Message: err.Error(),
@@ -190,6 +191,31 @@ func (c *CodecRequest) ReadRequest(args interface{}) error {
 		}
 	}
 	return c.err
+}
+
+// unmarshalArrayParams decodes a JSON-RPC 2.0 by-position params array.
+func unmarshalArrayParams(params json.RawMessage, args interface{}) error {
+	wrap := [1]interface{}{args}
+	if err := json.Unmarshal(params, &wrap); err == nil {
+		return nil
+	}
+	rv := reflect.ValueOf(args)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return json.Unmarshal(params, &wrap)
+	}
+	ev := rv.Elem()
+	if ev.Kind() != reflect.Struct {
+		return json.Unmarshal(params, &wrap)
+	}
+	fields := make([]interface{}, 0, ev.NumField())
+	for i := 0; i < ev.NumField(); i++ {
+		f := ev.Field(i)
+		if !f.CanSet() {
+			continue
+		}
+		fields = append(fields, f.Addr().Interface())
+	}
+	return json.Unmarshal(params, &fields)
 }
 
 // WriteResponse encodes the response and writes it to the ResponseWriter.
