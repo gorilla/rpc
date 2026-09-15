@@ -289,3 +289,76 @@ func TestDecodeNullResult(t *testing.T) {
 		t.Error("Expected result to be nil, but got:", result)
 	}
 }
+
+type notificationArgs struct {
+	Message  string
+	Priority uint8
+	Critical bool
+}
+
+func TestReadRequestPositionalStruct(t *testing.T) {
+	body := `{"jsonrpc":"2.0","method":"Service1.Multiply","params":[4,2],"id":1}`
+	r, err := http.NewRequest("POST", "/", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cr := NewCodec().NewRequest(r)
+	var args Service1Request
+	if err := cr.ReadRequest(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.A != 4 || args.B != 2 {
+		t.Fatalf("got %+v, want A=4 B=2", args)
+	}
+
+	s := rpc.NewServer()
+	s.RegisterCodec(NewCodec(), "application/json")
+	if err := s.RegisterService(new(Service1), ""); err != nil {
+		t.Fatal(err)
+	}
+	var res Service1Response
+	raw := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "Service1.Multiply",
+		"params":  []int{4, 2},
+		"id":      1,
+	}
+	if err := executeRaw(t, s, raw, &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Result != 8 {
+		t.Fatalf("Multiply [4,2] got %d, want 8", res.Result)
+	}
+}
+
+func TestReadRequestPositionalNotification(t *testing.T) {
+	body := `{"jsonrpc":"2.0","method":"X.Y","params":["Hello world", 10, false],"id":1}`
+	r, err := http.NewRequest("POST", "/", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cr := NewCodec().NewRequest(r)
+	var args notificationArgs
+	if err := cr.ReadRequest(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.Message != "Hello world" || args.Priority != 10 || args.Critical {
+		t.Fatalf("got %+v", args)
+	}
+}
+
+func TestReadRequestByNameStillWorks(t *testing.T) {
+	body := `{"jsonrpc":"2.0","method":"Service1.Multiply","params":{"A":4,"B":2},"id":1}`
+	r, err := http.NewRequest("POST", "/", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cr := NewCodec().NewRequest(r)
+	var args Service1Request
+	if err := cr.ReadRequest(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.A != 4 || args.B != 2 {
+		t.Fatalf("got %+v, want A=4 B=2", args)
+	}
+}
