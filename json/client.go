@@ -24,8 +24,8 @@ import (
 type clientRequest struct {
 	// A String containing the name of the method to be invoked.
 	Method string `json:"method"`
-	// Object to pass as request parameter to the method.
-	Params [1]interface{} `json:"params"`
+	// Array of objects to pass as request parameters to the method.
+	Params []interface{} `json:"params"`
 	// The request id. This can be of any type. It is used to match the
 	// response with the request that it is replying to.
 	Id uint64 `json:"id"`
@@ -45,9 +45,13 @@ func EncodeClientRequest(method string, args interface{}) ([]byte, error) {
 		log.Fatal(err)
 	}
 
+	params := []interface{}{}
+	if args != nil {
+		params = []interface{}{args}
+	}
 	c := &clientRequest{
 		Method: method,
-		Params: [1]interface{}{args},
+		Params: params,
 		Id:     val.Uint64(),
 	}
 	return json.Marshal(c)
