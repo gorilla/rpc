@@ -289,3 +289,28 @@ func TestDecodeNullResult(t *testing.T) {
 		t.Error("Expected result to be nil, but got:", result)
 	}
 }
+
+func TestEncodeClientRequestNilArgs(t *testing.T) {
+	buf, err := EncodeClientRequest("Service1.Ping", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]interface{}
+	if err := json.Unmarshal(buf, &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["params"]; ok {
+		t.Fatalf("nil args should omit params, got %#v", got["params"])
+	}
+
+	buf, err = EncodeClientRequest("Service1.Multiply", &Service1Request{A: 4, B: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(buf, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["params"] == nil {
+		t.Fatal("non-nil args should include params")
+	}
+}

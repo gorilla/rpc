@@ -135,3 +135,33 @@ func TestServiceBeforeAfter(t *testing.T) {
 		t.Errorf("Expected after in context to be 'After is true', got %s", afterValue)
 	}
 }
+
+func TestEncodeClientRequestNilArgs(t *testing.T) {
+	buf, err := EncodeClientRequest("Service1.Ping", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]interface{}
+	if err := json.Unmarshal(buf, &got); err != nil {
+		t.Fatal(err)
+	}
+	params, ok := got["params"].([]interface{})
+	if !ok {
+		t.Fatalf("params want array, got %T %v", got["params"], got["params"])
+	}
+	if len(params) != 0 {
+		t.Fatalf("nil args should encode as empty params array, got %#v", params)
+	}
+
+	buf, err = EncodeClientRequest("Service1.Multiply", &Service1Request{A: 4, B: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(buf, &got); err != nil {
+		t.Fatal(err)
+	}
+	params, ok = got["params"].([]interface{})
+	if !ok || len(params) != 1 {
+		t.Fatalf("non-nil args should encode as a one-element array, got %#v", got["params"])
+	}
+}

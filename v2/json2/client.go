@@ -27,7 +27,7 @@ type clientRequest struct {
 	Method string `json:"method"`
 
 	// Object to pass as request parameter to the method.
-	Params interface{} `json:"params"`
+	Params interface{} `json:"params,omitempty"`
 
 	// The request id. This can be of any type. It is used to match the
 	// response with the request that it is replying to.
