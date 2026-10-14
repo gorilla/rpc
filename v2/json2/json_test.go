@@ -289,3 +289,65 @@ func TestDecodeNullResult(t *testing.T) {
 		t.Error("Expected result to be nil, but got:", result)
 	}
 }
+
+type SpectrumPawsArgs struct {
+	DeviceID string `json:"deviceId"`
+}
+
+type SpectrumPawsReply struct {
+	Status string `json:"status"`
+}
+
+type SpectrumPawsService struct{}
+
+func (s *SpectrumPawsService) Init(r *http.Request, args *SpectrumPawsArgs, reply *SpectrumPawsReply) error {
+	reply.Status = "OK:" + args.DeviceID
+	return nil
+}
+
+func TestJson2DottedServiceNames(t *testing.T) {
+	server := rpc.NewServer()
+	server.RegisterCodec(NewCodec(), "application/json")
+	if err := server.RegisterService(new(SpectrumPawsService), "spectrum.paws"); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "spectrum.paws.Init",
+		"params": map[string]string{
+			"deviceId": "dev-123",
+		},
+		"id": 1,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest("POST", "/", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	recorder := NewRecorder()
+	server.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d (body: %s)", recorder.Code, recorder.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+
+	result, ok := resp["result"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected result object, got %v", resp)
+	}
+	if result["status"] != "OK:dev-123" {
+		t.Errorf("Expected status OK:dev-123, got %v", result["status"])
+	}
+}

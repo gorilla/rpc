@@ -238,3 +238,81 @@ func TestInterception(t *testing.T) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, strconv.Itoa(expected))
 	}
 }
+
+type SpectrumPawsRequest struct {
+	Param string
+}
+
+type SpectrumPawsResponse struct {
+	Result string
+}
+
+type SpectrumPaws struct {
+}
+
+func (t *SpectrumPaws) Init(r *http.Request, req *SpectrumPawsRequest, res *SpectrumPawsResponse) error {
+	res.Result = "paws:" + req.Param
+	return nil
+}
+
+type MockPawsCodec struct {
+	Param string
+}
+
+func (c MockPawsCodec) NewRequest(*http.Request) CodecRequest {
+	return MockPawsCodecRequest(c)
+}
+
+type MockPawsCodecRequest struct {
+	Param string
+}
+
+func (r MockPawsCodecRequest) Method() (string, error) {
+	return "spectrum.paws.Init", nil
+}
+
+func (r MockPawsCodecRequest) ReadRequest(args interface{}) error {
+	req := args.(*SpectrumPawsRequest)
+	req.Param = r.Param
+	return nil
+}
+
+func (r MockPawsCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}, methodErr error) error {
+	if methodErr != nil {
+		if _, err := w.Write([]byte(methodErr.Error())); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		res := reply.(*SpectrumPawsResponse)
+		if _, err := w.Write([]byte(res.Result)); err != nil {
+			log.Fatal(err)
+		}
+	}
+	return nil
+}
+
+func TestDottedServiceNames(t *testing.T) {
+	s := NewServer()
+	if err := s.RegisterService(new(SpectrumPaws), "spectrum.paws"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.HasMethod("spectrum.paws.Init") {
+		t.Errorf("Expected to be registered: spectrum.paws.Init")
+	}
+
+	s.RegisterCodec(MockPawsCodec{Param: "test"}, "mock-paws")
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock-paws")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != "paws:test" {
+		t.Errorf("Response body was %s, should be paws:test.", w.Body)
+	}
+}

@@ -396,3 +396,82 @@ func TestValidationFails(t *testing.T) {
 		t.Errorf("Response body was %s, should be %s.", w.Body, expected)
 	}
 }
+
+type V2SpectrumPawsRequest struct {
+	Param string
+}
+
+type V2SpectrumPawsResponse struct {
+	Result string
+}
+
+type V2SpectrumPaws struct {
+}
+
+func (t *V2SpectrumPaws) Init(r *http.Request, req *V2SpectrumPawsRequest, res *V2SpectrumPawsResponse) error {
+	res.Result = "paws:" + req.Param
+	return nil
+}
+
+type V2MockPawsCodec struct {
+	Param string
+}
+
+func (c V2MockPawsCodec) NewRequest(*http.Request) CodecRequest {
+	return V2MockPawsCodecRequest(c)
+}
+
+type V2MockPawsCodecRequest struct {
+	Param string
+}
+
+func (r V2MockPawsCodecRequest) Method() (string, error) {
+	return "spectrum.paws.Init", nil
+}
+
+func (r V2MockPawsCodecRequest) ReadRequest(args interface{}) error {
+	req := args.(*V2SpectrumPawsRequest)
+	req.Param = r.Param
+	return nil
+}
+
+func (r V2MockPawsCodecRequest) WriteResponse(w http.ResponseWriter, reply interface{}) {
+	res := reply.(*V2SpectrumPawsResponse)
+	if _, err := w.Write([]byte(res.Result)); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (r V2MockPawsCodecRequest) WriteError(w http.ResponseWriter, status int, err error) {
+	w.WriteHeader(status)
+	_, er := w.Write([]byte(err.Error()))
+	if er != nil {
+		log.Fatal(er)
+	}
+}
+
+func TestV2DottedServiceNames(t *testing.T) {
+	s := NewServer()
+	if err := s.RegisterService(new(V2SpectrumPaws), "spectrum.paws"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.HasMethod("spectrum.paws.Init") {
+		t.Errorf("Expected to be registered: spectrum.paws.Init")
+	}
+
+	s.RegisterCodec(V2MockPawsCodec{Param: "test-v2"}, "mock-paws")
+
+	r, err := http.NewRequest("POST", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "mock-paws")
+	w := NewMockResponseWriter()
+	s.ServeHTTP(w, r)
+	if w.Status != 200 {
+		t.Errorf("Status was %d, should be 200.", w.Status)
+	}
+	if w.Body != "paws:test-v2" {
+		t.Errorf("Response body was %s, should be paws:test-v2.", w.Body)
+	}
+}

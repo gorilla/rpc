@@ -143,19 +143,22 @@ func (m *serviceMap) register(rcvr interface{}, name string, passReq bool) error
 //
 // The method name uses a dotted notation as in "Service.Method".
 func (m *serviceMap) get(method string) (*service, *serviceMethod, error) {
-	parts := strings.Split(method, ".")
-	if len(parts) != 2 {
+	idx := strings.LastIndex(method, ".")
+	if idx < 0 || idx == 0 || idx == len(method)-1 {
 		err := fmt.Errorf("rpc: service/method request ill-formed: %q", method)
 		return nil, nil, err
 	}
+	serviceName := method[:idx]
+	methodName := method[idx+1:]
+
 	m.mutex.Lock()
-	service := m.services[parts[0]]
+	service := m.services[serviceName]
 	m.mutex.Unlock()
 	if service == nil {
 		err := fmt.Errorf("rpc: can't find service %q", method)
 		return nil, nil, err
 	}
-	serviceMethod := service.methods[parts[1]]
+	serviceMethod := service.methods[methodName]
 	if serviceMethod == nil {
 		err := fmt.Errorf("rpc: can't find method %q", method)
 		return nil, nil, err
@@ -163,8 +166,11 @@ func (m *serviceMap) get(method string) (*service, *serviceMethod, error) {
 	return service, serviceMethod, nil
 }
 
-// isExported returns true of a string is an exported (upper case) name.
+// isExported returns true of a string is an exported (upper case) name, or contains dots (e.g. dotted service namespaces).
 func isExported(name string) bool {
+	if strings.Contains(name, ".") {
+		return true
+	}
 	rune, _ := utf8.DecodeRuneInString(name)
 	return unicode.IsUpper(rune)
 }
